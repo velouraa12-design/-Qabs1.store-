@@ -17,6 +17,7 @@ import { FormationWizardModal } from './components/FormationWizardModal.tsx';
 import { NewStoreModal } from './components/NewStoreModal.tsx';
 import { AIChatModal } from './components/AIChatModal.tsx';
 import { AuthModal } from './components/AuthModal.tsx';
+import { CheckoutModal } from './components/CheckoutModal.tsx';
 import { ContentEditorModal } from './components/ContentEditorModal.tsx';
 import { Footer } from './components/Footer.tsx';
 import { CheckCircle } from 'lucide-react';
@@ -59,17 +60,31 @@ const isWorkspaceLocation = (): boolean => {
 };
 
 const MainLayout: React.FC = () => {
-  const { mode, setMode, toastMessage } = useApp();
+  const {
+    mode,
+    setMode,
+    toastMessage,
+    isAuthenticated,
+    isOwner,
+    openClientAuth,
+    openOwnerAuth
+  } = useApp();
 
   const [formationModalOpen, setFormationModalOpen] = useState(false);
   const [selectedStateCode, setSelectedStateCode] = useState<string>('WY');
   const [storeModalOpen, setStoreModalOpen] = useState(false);
   const [aiModalOpen, setAiModalOpen] = useState(false);
 
+  // Browse First, Auth on Action: guard workspace hashes & mode access
   useEffect(() => {
     const syncWorkspaceRoute = () => {
       if (isWorkspaceLocation()) {
-        setMode('portal');
+        if (isAuthenticated) {
+          setMode('portal');
+        } else {
+          setMode('landing');
+          openClientAuth('login');
+        }
       }
     };
 
@@ -80,18 +95,29 @@ const MainLayout: React.FC = () => {
       window.removeEventListener('hashchange', syncWorkspaceRoute);
       window.removeEventListener('popstate', syncWorkspaceRoute);
     };
-  }, [setMode]);
+  }, [isAuthenticated, setMode, openClientAuth]);
+
+  useEffect(() => {
+    if (!isAuthenticated && mode !== 'landing') {
+      setMode('landing');
+      return;
+    }
+    if ((mode === 'admin' || mode === 'template_hub') && !isOwner) {
+      setMode(isAuthenticated ? 'portal' : 'landing');
+      openOwnerAuth();
+    }
+  }, [mode, isAuthenticated, isOwner, setMode, openOwnerAuth]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (mode === 'portal') {
+    if (mode === 'portal' && isAuthenticated) {
       if (!isWorkspaceLocation()) {
         window.history.replaceState({ qabsWorkspace: 'overview' }, '', '#/overview');
       }
     } else if (isWorkspaceLocation() && window.location.hash) {
       window.history.replaceState(null, '', window.location.pathname + window.location.search);
     }
-  }, [mode]);
+  }, [mode, isAuthenticated]);
 
   const handleOpenFormationWithState = (stateCode?: string) => {
     if (stateCode) {
@@ -118,7 +144,7 @@ const MainLayout: React.FC = () => {
 
       {/* Main View Router */}
       <main className="flex-1">
-        {mode === 'landing' && (
+        {(mode === 'landing' || !isAuthenticated) && (
           <LandingView
             onOpenFormationModal={handleOpenFormationWithState}
             onOpenStoreModal={() => setStoreModalOpen(true)}
@@ -126,28 +152,28 @@ const MainLayout: React.FC = () => {
           />
         )}
 
-        {mode === 'portal' && (
+        {isAuthenticated && mode === 'portal' && (
           <PortalView
             onOpenFormationModal={() => handleOpenFormationWithState()}
             onOpenStoreModal={() => setStoreModalOpen(true)}
           />
         )}
 
-        {mode === 'store_builder' && (
+        {isAuthenticated && mode === 'store_builder' && (
           <StoreBuilderView
             onOpenStoreModal={() => setStoreModalOpen(true)}
           />
         )}
 
-        {mode === 'billing' && (
+        {isAuthenticated && mode === 'billing' && (
           <BillingSubscriptionView />
         )}
 
-        {mode === 'admin' && (
+        {isOwner && mode === 'admin' && (
           <AdminView />
         )}
 
-        {mode === 'template_hub' && (
+        {isOwner && mode === 'template_hub' && (
           <TemplateHubView />
         )}
       </main>
@@ -173,6 +199,8 @@ const MainLayout: React.FC = () => {
       />
 
       <AuthModal />
+
+      <CheckoutModal />
 
       <ContentEditorModal />
     </div>

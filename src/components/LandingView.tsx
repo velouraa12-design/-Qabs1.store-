@@ -1,10 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext.tsx';
 import { useCustomizer } from '../context/CustomizerContext.tsx';
-import {
-  US_STATES_PRICING,
-  QABS_FORMATION_PKGS
-} from '../data/usStatesPricing.ts';
+import { SUBSCRIPTION_PLANS } from '../data/mockData.ts';
+import { US_STATES_PRICING, QABS_FORMATION_PKGS } from '../data/usStatesPricing.ts';
 import {
   Building2,
   Store,
@@ -19,12 +17,13 @@ import {
   Layers,
   Landmark,
   FileCheck2,
-  Edit3,
   Phone,
   HelpCircle,
-  Zap,
-  Award,
-  ArrowRight
+  ArrowRight,
+  Calculator,
+  Coins,
+  Bot,
+  Lock
 } from 'lucide-react';
 
 interface LandingViewProps {
@@ -33,14 +32,92 @@ interface LandingViewProps {
   onOpenAIModal?: () => void;
 }
 
+type CalcJurisdiction = 'US_WYOMING' | 'US_DELAWARE' | 'US_KENTUCKY' | 'US_NEW_MEXICO' | 'UK_LTD';
+
+const CALC_JURISDICTIONS: {
+  id: CalcJurisdiction;
+  stateCode: string;
+  labelAr: string;
+  labelEn: string;
+  entityType: 'LLC' | 'C-CORP' | 'LTD';
+  baseUsd: number;
+  noteAr: string;
+  noteEn: string;
+}[] = [
+  {
+    id: 'US_WYOMING',
+    stateCode: 'WY',
+    labelAr: 'وايومنغ الأمريكية (Wyoming LLC)',
+    labelEn: 'Wyoming LLC (USA)',
+    entityType: 'LLC',
+    baseUsd: 249,
+    noteAr: 'الأكثر طلباً للتجارة الإلكترونية • ضريبة ولاية 0%',
+    noteEn: 'Best for e-commerce • 0% state income tax'
+  },
+  {
+    id: 'US_DELAWARE',
+    stateCode: 'DE',
+    labelAr: 'ديلاوير الأمريكية (Delaware LLC / C-Corp)',
+    labelEn: 'Delaware LLC / C-Corp',
+    entityType: 'LLC',
+    baseUsd: 260,
+    noteAr: 'المعيار الاستثماري للشركات الناشئة والبنوك',
+    noteEn: 'Gold standard for startups & venture scaling'
+  },
+  {
+    id: 'US_KENTUCKY',
+    stateCode: 'KY',
+    labelAr: 'كنتاكي الأمريكية (Kentucky LLC)',
+    labelEn: 'Kentucky LLC (USA)',
+    entityType: 'LLC',
+    baseUsd: 189,
+    noteAr: 'رسوم حكومية اقتصادية وسرعة إيداع عالية',
+    noteEn: 'Lowest state filing fee & fast turnaround'
+  },
+  {
+    id: 'US_NEW_MEXICO',
+    stateCode: 'NM',
+    labelAr: 'نيو مكسيكو (New Mexico LLC)',
+    labelEn: 'New Mexico LLC (USA)',
+    entityType: 'LLC',
+    baseUsd: 199,
+    noteAr: 'خصوصية عالية وبدون رسوم تقرير سنوي',
+    noteEn: 'Full privacy & $0 annual state report'
+  },
+  {
+    id: 'UK_LTD',
+    stateCode: 'UK',
+    labelAr: 'المملكة المتحدة (UK LTD)',
+    labelEn: 'United Kingdom (UK LTD)',
+    entityType: 'LTD',
+    baseUsd: 179,
+    noteAr: 'تأسيس أوروبي سريع للتجارة وبوابات الدفع',
+    noteEn: 'Fast UK Companies House registration'
+  }
+];
+
 export const LandingView: React.FC<LandingViewProps> = ({
   onOpenFormationModal,
-  onOpenStoreModal,
-  onOpenAIModal
+  onOpenStoreModal: _onOpenStoreModal,
+  onOpenAIModal: _onOpenAIModal
 }) => {
-  const { language, setMode } = useApp();
-  const { siteContent, setEditorOpen } = useCustomizer();
+  const { language, setMode, isAuthenticated, requestServiceAction, openClientAuth, sectionSettings } = useApp();
+  const { siteContent } = useCustomizer();
   const isAr = language === 'ar';
+
+  // Interactive Formation Calculator State
+  const [calcJurisdiction, setCalcJurisdiction] = useState<CalcJurisdiction>('US_WYOMING');
+  const [calcCompanyName, setCalcCompanyName] = useState('');
+  const [calcAddons, setCalcAddons] = useState({
+    ein: true,
+    physicalAddressAgent: true,
+    businessBank: false,
+    stripePayPal: false
+  });
+
+  // Store Package Cycle & Name
+  const [storeBillingCycle, setStoreBillingCycle] = useState<'monthly' | 'annual'>('monthly');
+  const [showcaseStoreName, setShowcaseStoreName] = useState('');
 
   // Collapsible states pricing
   const [showStatesPricing, setShowStatesPricing] = useState(false);
@@ -50,6 +127,93 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
   // FAQ Accordion state
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+
+  const selectedCalcJur = CALC_JURISDICTIONS.find(j => j.id === calcJurisdiction) || CALC_JURISDICTIONS[0];
+  const einFee = sectionSettings.companyFormation.einFeeUsd || 79;
+  const agentFee = sectionSettings.companyFormation.registeredAgentFeeUsd || 59;
+  const bankFee = 49;
+  const gatewayFee = 69;
+
+  const calcTotalUsd =
+    selectedCalcJur.baseUsd +
+    (calcAddons.ein ? einFee : 0) +
+    (calcAddons.physicalAddressAgent ? agentFee : 0) +
+    (calcAddons.businessBank ? bankFee : 0) +
+    (calcAddons.stripePayPal ? gatewayFee : 0);
+  const calcTotalSar = Math.round(calcTotalUsd * 3.75);
+
+  const handleOpenPortalSafe = () => {
+    if (isAuthenticated) {
+      setMode('portal');
+    } else {
+      openClientAuth('login');
+    }
+  };
+
+  const handleFormationAction = (stateCode?: string) => {
+    if (isAuthenticated) {
+      onOpenFormationModal(stateCode || selectedCalcJur.stateCode);
+      return;
+    }
+    const foundJur = CALC_JURISDICTIONS.find(j => j.stateCode === stateCode) || selectedCalcJur;
+    requestServiceAction({
+      id: `svc_cf_${Date.now()}`,
+      serviceType: 'company_formation',
+      titleAr: `تأسيس شركة ${foundJur.labelAr}`,
+      titleEn: `Form ${foundJur.labelEn}`,
+      subtitleAr: 'تشمل تجهيز ملف التأسيس الرسمي، الوكيل المسجل، والمتابعة حتى الإصدار',
+      subtitleEn: 'Includes official filing package, registered agent & full workspace tracking',
+      priceUsd: foundJur.baseUsd + einFee + agentFee,
+      details: {
+        jurisdiction: foundJur.id,
+        companyName: calcCompanyName.trim() || undefined,
+        entityType: foundJur.entityType,
+        addons: {
+          ein: true,
+          physicalAddressAgent: true,
+          businessBank: false,
+          stripePayPal: false
+        }
+      }
+    });
+  };
+
+  const handleCalculatorOrder = () => {
+    const enabledLabelsAr: string[] = [];
+    const enabledLabelsEn: string[] = [];
+    if (calcAddons.ein) {
+      enabledLabelsAr.push('الرقم الضريبي EIN');
+      enabledLabelsEn.push('IRS EIN');
+    }
+    if (calcAddons.physicalAddressAgent) {
+      enabledLabelsAr.push('وكيل مسجل وعنوان رسمي');
+      enabledLabelsEn.push('Registered Agent & Address');
+    }
+    if (calcAddons.businessBank) {
+      enabledLabelsAr.push('تجهيز البنك التجاري');
+      enabledLabelsEn.push('Mercury/Relay Bank Setup');
+    }
+    if (calcAddons.stripePayPal) {
+      enabledLabelsAr.push('ربط Stripe و PayPal');
+      enabledLabelsEn.push('Stripe & PayPal Setup');
+    }
+
+    requestServiceAction({
+      id: `svc_calc_${Date.now()}`,
+      serviceType: 'company_formation',
+      titleAr: `طلب تأسيس: ${selectedCalcJur.labelAr}`,
+      titleEn: `Formation Order: ${selectedCalcJur.labelEn}`,
+      subtitleAr: enabledLabelsAr.length > 0 ? `الخدمات المضافة: ${enabledLabelsAr.join(' + ')}` : selectedCalcJur.noteAr,
+      subtitleEn: enabledLabelsEn.length > 0 ? `Add-ons: ${enabledLabelsEn.join(' + ')}` : selectedCalcJur.noteEn,
+      priceUsd: calcTotalUsd,
+      details: {
+        jurisdiction: selectedCalcJur.id,
+        companyName: calcCompanyName.trim() || undefined,
+        entityType: selectedCalcJur.entityType,
+        addons: { ...calcAddons }
+      }
+    });
+  };
 
   const selectedPkg =
     QABS_FORMATION_PKGS.find(p => p.id === selectedPkgId) || QABS_FORMATION_PKGS[1];
@@ -122,40 +286,30 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
               {/* Primary Hero Actions */}
               <div className="flex flex-wrap items-center gap-3 pt-2">
-                <button
-                  onClick={() => onOpenFormationModal('WY')}
-                  className="px-6 py-3.5 rounded-xl bg-gradient-to-r from-[#004457] via-[#006D77] to-[#00A896] text-white font-black text-xs sm:text-sm shadow-lg hover:opacity-95 transition-all flex items-center gap-2 cursor-pointer"
+                <a
+                  href="#formation-calculator"
+                  className="px-6 py-3.5 rounded-xl bg-gradient-to-r from-[#14243E] via-[#004457] to-[#006D77] text-white font-black text-xs sm:text-sm shadow-lg hover:opacity-95 transition-all flex items-center gap-2 cursor-pointer"
                 >
-                  <Building2 className="w-4 h-4 text-[#E5C158]" />
-                  <span>{isAr ? siteContent.heroCtaTextAr : siteContent.heroCtaTextEn}</span>
-                </button>
+                  <Calculator className="w-4 h-4 text-[#D5B46B]" />
+                  <span>{isAr ? 'احسب تكلفة تأسيس شركتك الآن' : 'Calculate Formation Price'}</span>
+                </a>
 
                 <button
-                  onClick={() => setMode('portal')}
-                  className="px-5 py-3.5 rounded-xl bg-white dark:bg-slate-900 border-2 border-[#004457] text-[#004457] dark:text-teal-300 font-black text-xs sm:text-sm hover:bg-teal-50/60 transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+                  type="button"
+                  onClick={handleOpenPortalSafe}
+                  className="px-5 py-3.5 rounded-xl bg-white dark:bg-slate-900 border-2 border-[#14243E] dark:border-[#D5B46B] text-[#14243E] dark:text-[#D5B46B] font-black text-xs sm:text-sm hover:bg-[#F8F7F2] transition-all flex items-center gap-2 cursor-pointer shadow-sm"
                 >
-                  <Store className="w-4 h-4 text-[#00A896]" />
-                  <span>{isAr ? 'الدخول للبوابة الموحدة (المتاجر والشركات)' : 'Open Unified Portal'}</span>
+                  <Store className="w-4 h-4 text-[#92743A]" />
+                  <span>{isAuthenticated ? (isAr ? 'دخول مساحة العمل' : 'Open Workspace') : isAr ? 'تسجيل الدخول / حسابي' : 'Sign In / My Account'}</span>
                 </button>
 
-                {onOpenAIModal && (
-                  <button
-                    onClick={onOpenAIModal}
-                    className="px-4 py-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-[#C8A24A]/50 text-[#004457] dark:text-[#E5C158] font-bold text-xs flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Sparkles className="w-4 h-4 text-[#C8A24A]" />
-                    <span>{isAr ? 'مستشار قبس الذكي' : 'QABS Advisor'}</span>
-                  </button>
-                )}
-
-                <button
-                  onClick={() => setEditorOpen(true)}
-                  className="px-3.5 py-3.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-[#004457] dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
-                  title={isAr ? 'تعديل نصوص وصور الواجهة' : 'Edit Hero & Package'}
+                <a
+                  href="#store-packages"
+                  className="px-4 py-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-[#D5B46B]/60 text-[#14243E] dark:text-[#D5B46B] font-bold text-xs flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Edit3 className="w-3.5 h-3.5 text-[#00A896]" />
-                  <span>{isAr ? 'تخصيص الواجهة' : 'Customize'}</span>
-                </button>
+                  <CreditCard className="w-4 h-4 text-[#92743A]" />
+                  <span>{isAr ? 'باقات المتاجر الإلكترونية' : 'Store Packages'}</span>
+                </a>
               </div>
 
               {/* Official Quick Links Strip */}
@@ -171,7 +325,8 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 </a>
                 <span>•</span>
                 <button
-                  onClick={() => setMode('portal')}
+                  type="button"
+                  onClick={handleOpenPortalSafe}
                   className="hover:text-[#00A896] font-mono font-bold cursor-pointer"
                 >
                   portal.qabs1.store
@@ -191,7 +346,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
             {/* Hero Right Column: Turnkey Package Showcase Card ($349) */}
             <div className="lg:col-span-5">
-              <div className="bg-white dark:bg-[#071D2B] border-2 border-[#00A896]/40 rounded-3xl p-6 shadow-2xl space-y-5 relative overflow-hidden">
+              <div className="bg-white dark:bg-[#071D2B] border-2 border-[#D5B46B]/60 rounded-3xl p-6 shadow-2xl space-y-5 relative overflow-hidden">
                 <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
                   <img
                     src="/qabas-logo.png"
@@ -202,14 +357,14 @@ export const LandingView: React.FC<LandingViewProps> = ({
                     <span className="text-[11px] text-slate-400 block font-bold">
                       {isAr ? 'باقة التأسيس والدفع الشاملة' : 'Turnkey Launch Package'}
                     </span>
-                    <span className="text-2xl font-black text-[#004457] dark:text-[#E5C158] font-mono">
+                    <span className="text-2xl font-black text-[#14243E] dark:text-[#D5B46B] font-mono">
                       ${siteContent.showcasePrice}
                     </span>
                   </div>
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-black text-[#003445] dark:text-white">
+                  <h3 className="text-lg font-black text-[#14243E] dark:text-white">
                     {isAr ? siteContent.showcasePackageTitleAr : siteContent.showcasePackageTitleEn}
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">
@@ -222,7 +377,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 <ul className="space-y-2.5">
                   {(isAr ? siteContent.showcaseFeaturesAr : siteContent.showcaseFeaturesEn).map((feat, idx) => (
                     <li key={idx} className="flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
-                      <CheckCircle2 className="w-4 h-4 text-[#00A896] shrink-0" />
+                      <CheckCircle2 className="w-4 h-4 text-[#92743A] shrink-0" />
                       <span>{feat}</span>
                     </li>
                   ))}
@@ -230,16 +385,33 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
                 <div className="grid grid-cols-2 gap-2.5 pt-2">
                   <button
-                    onClick={() => onOpenFormationModal('WY')}
-                    className="py-3 px-4 rounded-xl bg-[#004457] hover:bg-[#003342] text-white font-black text-xs transition-all cursor-pointer text-center"
+                    type="button"
+                    onClick={() =>
+                      requestServiceAction({
+                        id: `svc_turnkey_${Date.now()}`,
+                        serviceType: 'company_formation',
+                        titleAr: isAr ? siteContent.showcasePackageTitleAr : 'باقة التأسيس الشاملة',
+                        titleEn: siteContent.showcasePackageTitleEn,
+                        subtitleAr: 'تأسيس شركة أمريكية + EIN + وكيل مسجل + تجهيز الدفع',
+                        subtitleEn: 'Full US LLC + IRS EIN + Registered Agent + Gateway prep',
+                        priceUsd: Number(siteContent.showcasePrice) || 349,
+                        details: {
+                          jurisdiction: 'US_WYOMING',
+                          entityType: 'LLC',
+                          addons: { ein: true, physicalAddressAgent: true, businessBank: true, stripePayPal: true }
+                        }
+                      })
+                    }
+                    className="py-3 px-4 rounded-xl bg-[#14243E] hover:bg-[#1c3357] text-white font-black text-xs transition-all cursor-pointer text-center"
                   >
-                    {isAr ? 'ابدأ تأسيس شركتك' : 'Form Company Now'}
+                    {isAr ? 'اطلب الباقة الآن' : 'Order Package Now'}
                   </button>
                   <button
-                    onClick={() => setMode('portal')}
-                    className="py-3 px-4 rounded-xl bg-[#00A896] hover:bg-[#008f7f] text-white font-black text-xs transition-all cursor-pointer text-center"
+                    type="button"
+                    onClick={handleOpenPortalSafe}
+                    className="py-3 px-4 rounded-xl bg-[#D5B46B] hover:bg-[#c5a45c] text-[#14243E] font-black text-xs transition-all cursor-pointer text-center"
                   >
-                    {isAr ? 'البوابة الموحدة' : 'Unified Portal'}
+                    {isAr ? 'مساحة العمل' : 'Workspace'}
                   </button>
                 </div>
               </div>
@@ -284,7 +456,390 @@ export const LandingView: React.FC<LandingViewProps> = ({
         </div>
       </section>
 
-      {/* 2. QABS INTEGRATED SOVEREIGN SERVICES PILLARS */}
+      {/* 2. INTERACTIVE COMPANY FORMATION PRICING CALCULATOR (US LLC / UK LTD) */}
+      <section id="formation-calculator" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        <div className="rounded-3xl bg-white dark:bg-[#071D2B] border-2 border-[#D5B46B]/60 p-6 sm:p-8 shadow-xl space-y-6">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#EAE6DC] dark:border-slate-800 pb-5">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F8F7F2] dark:bg-slate-900 border border-[#D5B46B]/50 text-[#92743A] text-xs font-black">
+                <Calculator className="w-3.5 h-3.5" />
+                <span>{isAr ? 'تصفح واحسب التكلفة بحرية قبل التسجيل' : 'Browse & Calculate Freely Before Registering'}</span>
+              </div>
+              <h2 className="text-2xl font-black text-[#14243E] dark:text-white">
+                {isAr
+                  ? 'حاسبة تأسيس الشركات الدولية التفاعلية (US LLC & UK LTD)'
+                  : 'Interactive International Company Formation Calculator'}
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500">
+                {isAr
+                  ? 'اختر الولاية والخدمات الإضافية لمعرفة التكلفة الإجمالية بالدولار والريال، ثم اضغط "اطلب الخدمة الآن" لإتمام الطلب.'
+                  : 'Select your jurisdiction and optional services for instant pricing, then proceed to checkout.'}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-[#14243E] text-white shrink-0">
+              <div>
+                <div className="text-[11px] text-[#D5B46B] font-bold">
+                  {isAr ? 'التكلفة التقديرية الشاملة' : 'Estimated Total'}
+                </div>
+                <div className="text-2xl font-black font-mono">${calcTotalUsd}</div>
+              </div>
+              <div className="h-8 w-px bg-white/20" />
+              <div className="text-xs font-bold text-[#EAE6DC]">
+                {isAr ? `~ ${calcTotalSar.toLocaleString()} ر.س` : `~ ${calcTotalSar.toLocaleString()} SAR`}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Jurisdiction Selection */}
+            <div className="lg:col-span-7 space-y-4">
+              <div>
+                <label className="block text-xs font-black text-[#14243E] dark:text-slate-200 mb-2">
+                  {isAr ? '1. اختر الولاية أو الاختصاص القانوني:' : '1. Choose Jurisdiction:'}
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {CALC_JURISDICTIONS.map(jur => {
+                    const active = calcJurisdiction === jur.id;
+                    return (
+                      <button
+                        key={jur.id}
+                        type="button"
+                        onClick={() => setCalcJurisdiction(jur.id)}
+                        className={`p-3.5 rounded-2xl border text-start transition-all cursor-pointer ${
+                          active
+                            ? 'border-[#14243E] dark:border-[#D5B46B] bg-[#FBFAF6] dark:bg-slate-900 ring-2 ring-[#D5B46B]/40'
+                            : 'border-[#EAE6DC] dark:border-slate-800 bg-white dark:bg-slate-900/40 hover:border-[#D5B46B]'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-black text-[#14243E] dark:text-white">
+                            {isAr ? jur.labelAr : jur.labelEn}
+                          </span>
+                          <span className="font-mono text-xs font-black text-[#92743A] dark:text-[#D5B46B]">
+                            ${jur.baseUsd}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 mt-1">
+                          {isAr ? jur.noteAr : jur.noteEn}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-[#14243E] dark:text-slate-200 mb-1.5">
+                  {isAr ? '2. اسم الشركة المقترح (اختياري):' : '2. Proposed Company Name (Optional):'}
+                </label>
+                <input
+                  type="text"
+                  value={calcCompanyName}
+                  onChange={e => setCalcCompanyName(e.target.value)}
+                  placeholder={isAr ? 'مثال: Qabs Ventures LLC' : 'e.g. Atlas Ventures LLC'}
+                  className="w-full rounded-xl border border-[#EAE6DC] dark:border-slate-700 bg-[#F8F7F2] dark:bg-slate-900 px-3.5 py-2.5 text-xs text-[#14243E] dark:text-white"
+                />
+              </div>
+            </div>
+
+            {/* Add-ons & Checkout CTA */}
+            <div className="lg:col-span-5 rounded-2xl bg-[#F8F7F2] dark:bg-slate-900/70 border border-[#EAE6DC] dark:border-slate-800 p-5 space-y-4">
+              <div className="text-xs font-black text-[#14243E] dark:text-white">
+                {isAr ? '3. الخدمات الإضافية المشمولة في الطلب:' : '3. Optional Formation Add-Ons:'}
+              </div>
+
+              <div className="space-y-2.5 text-xs">
+                {[
+                  {
+                    key: 'ein' as const,
+                    titleAr: 'استخراج الرقم الضريبي الفيدرالي (EIN)',
+                    titleEn: 'Federal IRS EIN Tax ID',
+                    price: einFee
+                  },
+                  {
+                    key: 'physicalAddressAgent' as const,
+                    titleAr: 'الوكيل المسجل وعنوان أمريكي/بريطاني معتمد',
+                    titleEn: 'Registered Agent & Business Address',
+                    price: agentFee
+                  },
+                  {
+                    key: 'businessBank' as const,
+                    titleAr: 'ملف وتجهيز الحساب البنكي التجاري (Mercury / Relay)',
+                    titleEn: 'Business Bank Account Prep (Mercury / Relay)',
+                    price: bankFee
+                  },
+                  {
+                    key: 'stripePayPal' as const,
+                    titleAr: 'تجهيز وربط بوابات الدفع (Stripe & PayPal)',
+                    titleEn: 'Stripe & PayPal Gateway Onboarding',
+                    price: gatewayFee
+                  }
+                ].map(item => (
+                  <label
+                    key={item.key}
+                    className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white dark:bg-[#071D2B] border border-[#EAE6DC] dark:border-slate-800 cursor-pointer hover:border-[#D5B46B]"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={calcAddons[item.key]}
+                        onChange={e =>
+                          setCalcAddons(prev => ({
+                            ...prev,
+                            [item.key]: e.target.checked
+                          }))
+                        }
+                        className="rounded border-slate-300 text-[#14243E]"
+                      />
+                      <span className="font-bold text-[#14243E] dark:text-slate-200">
+                        {isAr ? item.titleAr : item.titleEn}
+                      </span>
+                    </div>
+                    <span className="font-mono font-black text-[#92743A] dark:text-[#D5B46B] shrink-0">
+                      +${item.price}
+                    </span>
+                  </label>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCalculatorOrder}
+                className="w-full py-3.5 px-5 rounded-xl bg-[#14243E] hover:bg-[#1d3559] text-white font-black text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+              >
+                <Lock className="w-4 h-4 text-[#D5B46B]" />
+                <span>
+                  {isAr
+                    ? `اطلب الخدمة الآن — متابعة للدفع ($${calcTotalUsd})`
+                    : `Order Service Now — Checkout ($${calcTotalUsd})`}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 3. INDEPENDENT STORE PACKAGES & PAYMENT GATEWAYS (STRIPE / PAYPAL / CRYPTO) */}
+      <section id="store-packages" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <span className="text-xs font-black text-[#92743A] uppercase">
+              {isAr ? 'المتاجر الإلكترونية وبوابات الدفع' : 'Independent Stores & Payment Gateways'}
+            </span>
+            <h2 className="text-2xl font-black text-[#14243E] dark:text-white mt-1">
+              {isAr
+                ? 'باقات إنشاء المتاجر الإلكترونية المستقلة وربط Stripe / PayPal / Crypto'
+                : 'Standalone Store Packages with Stripe, PayPal & Crypto Gateways'}
+            </h2>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={showcaseStoreName}
+              onChange={e => setShowcaseStoreName(e.target.value)}
+              placeholder={isAr ? 'اسم متجرك المقترح (اختياري)...' : 'Store name (optional)...'}
+              className="rounded-xl border border-[#EAE6DC] dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs"
+            />
+            <div className="inline-flex rounded-xl border border-[#EAE6DC] dark:border-slate-700 bg-white dark:bg-slate-900 p-1 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setStoreBillingCycle('monthly')}
+                className={`px-3 py-1.5 rounded-lg cursor-pointer ${
+                  storeBillingCycle === 'monthly' ? 'bg-[#14243E] text-white' : 'text-slate-500'
+                }`}
+              >
+                {isAr ? 'شهري' : 'Monthly'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setStoreBillingCycle('annual')}
+                className={`px-3 py-1.5 rounded-lg cursor-pointer ${
+                  storeBillingCycle === 'annual' ? 'bg-[#14243E] text-white' : 'text-slate-500'
+                }`}
+              >
+                {isAr ? 'سنوي' : 'Annual'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {SUBSCRIPTION_PLANS.map(plan => {
+            const unitPrice = storeBillingCycle === 'annual' ? plan.priceAnnual : plan.priceMonthly;
+            const totalCharge = storeBillingCycle === 'annual' ? unitPrice * 12 : unitPrice;
+            return (
+              <div
+                key={plan.id}
+                className={`rounded-3xl bg-white dark:bg-[#071D2B] p-6 border-2 flex flex-col justify-between space-y-5 shadow-sm ${
+                  plan.popular
+                    ? 'border-[#D5B46B] shadow-lg'
+                    : 'border-[#EAE6DC] dark:border-slate-800'
+                }`}
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="px-2.5 py-1 rounded-lg bg-[#F8F7F2] dark:bg-slate-900 border border-[#D5B46B]/50 text-[#92743A] text-[10px] font-black">
+                      {isAr ? plan.badgeAr : plan.badgeEn}
+                    </span>
+                    <div className="flex items-center gap-1 text-[10px] font-mono text-slate-400">
+                      <span>Stripe</span>
+                      <span>•</span>
+                      <span>PayPal</span>
+                      <span>•</span>
+                      <span>Crypto</span>
+                    </div>
+                  </div>
+
+                  <h3 className="text-lg font-black text-[#14243E] dark:text-white">
+                    {isAr ? plan.nameAr : plan.nameEn}
+                  </h3>
+
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-3xl font-black font-mono text-[#14243E] dark:text-[#D5B46B]">
+                      ${unitPrice}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      / {isAr ? 'شهرياً' : 'month'}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    {isAr ? plan.descriptionAr : plan.descriptionEn}
+                  </p>
+
+                  <ul className="space-y-2 pt-2 border-t border-[#EAE6DC] dark:border-slate-800">
+                    {(isAr ? plan.featuresAr : plan.featuresEn).slice(0, 4).map((feat, idx) => (
+                      <li key={idx} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 font-semibold">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#00A896] shrink-0" />
+                        <span>{feat}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    requestServiceAction({
+                      id: `svc_store_${plan.id}_${Date.now()}`,
+                      serviceType: 'store_package',
+                      titleAr: isAr ? plan.nameAr : plan.nameEn,
+                      titleEn: plan.nameEn,
+                      subtitleAr: `إنشاء متجر مستقل مع بوابات Stripe / PayPal / Crypto (${storeBillingCycle === 'annual' ? 'اشتراك سنوي' : 'اشتراك شهري'})`,
+                      subtitleEn: `Standalone Store + Stripe / PayPal / Crypto (${storeBillingCycle})`,
+                      priceUsd: totalCharge,
+                      details: {
+                        planId: plan.id,
+                        billingCycle: storeBillingCycle,
+                        storeName: showcaseStoreName.trim() || undefined
+                      }
+                    })
+                  }
+                  className="w-full py-3 px-4 rounded-xl bg-[#14243E] hover:bg-[#1d3559] text-white font-black text-xs cursor-pointer transition-colors"
+                >
+                  {isAr ? `اطلب الباقة الآن ($${totalCharge})` : `Order Plan Now ($${totalCharge})`}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* 4. QABS AI TOOLS & DIGITAL SERVICES SHOWCASE */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        <div>
+          <span className="text-xs font-black text-[#00A896] uppercase">
+            {isAr ? 'أدوات قبس AI والخدمات الرقمية' : 'QABS AI Tools & Digital Services'}
+          </span>
+          <h2 className="text-2xl font-black text-[#14243E] dark:text-white mt-1">
+            {isAr
+              ? 'باقات قبس AI للأتمتة الذكية وإدارة المنتجات والطلبات'
+              : 'QABS AI Smart Automation & Digital Credit Packs'}
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {[
+            {
+              id: 'ai_500',
+              credits: 500,
+              priceUsd: 29,
+              titleAr: 'باقة قبس AI الأساسية (500 رصيد)',
+              titleEn: 'QABS AI Starter (500 Credits)',
+              descAr: 'أوامر ذكية لتسعير المنتجات، صياغة الأوصاف الاحترافية، وإنشاء كوبونات الخصم تلقائياً.',
+              descEn: 'Smart commands for product pricing, copywriting, and automated discount generation.',
+              icon: Bot
+            },
+            {
+              id: 'ai_1500',
+              credits: 1500,
+              priceUsd: 69,
+              titleAr: 'باقة قبس AI الاحترافية (1,500 رصيد)',
+              titleEn: 'QABS AI Pro (1,500 Credits)',
+              descAr: 'تجهيز الطلبات الآلي، تحليل المبيعات المباشر، ومساعد إدارة المخزون والربط البنكي.',
+              descEn: 'Automated fulfillment, live analytics reports, and inventory assistant.',
+              icon: Sparkles
+            },
+            {
+              id: 'ai_5000',
+              credits: 5000,
+              priceUsd: 149,
+              titleAr: 'باقة قبس AI المؤسسية (5,000 رصيد + أتمتة)',
+              titleEn: 'QABS AI Enterprise (5,000 Credits)',
+              descAr: 'سقف عمليات موسع، مزامنة Shopify Admin API بالذكاء الاصطناعي، ودعم التسوية بالعملات الرقمية.',
+              descEn: 'High-volume automation, Shopify API AI sync, and multi-currency crypto tools.',
+              icon: Coins
+            }
+          ].map(pack => {
+            const PackIcon = pack.icon;
+            return (
+              <div
+                key={pack.id}
+                className="p-6 rounded-3xl bg-white dark:bg-[#071D2B] border border-[#EAE6DC] dark:border-slate-800 hover:border-[#D5B46B] shadow-sm flex flex-col justify-between space-y-4"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="w-11 h-11 rounded-xl bg-[#14243E] text-[#D5B46B] flex items-center justify-center">
+                      <PackIcon className="w-5 h-5" />
+                    </div>
+                    <span className="font-mono text-xl font-black text-[#14243E] dark:text-[#D5B46B]">
+                      ${pack.priceUsd}
+                    </span>
+                  </div>
+                  <h3 className="text-base font-black text-[#14243E] dark:text-white">
+                    {isAr ? pack.titleAr : pack.titleEn}
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    {isAr ? pack.descAr : pack.descEn}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    requestServiceAction({
+                      id: `svc_${pack.id}_${Date.now()}`,
+                      serviceType: 'ai_credits',
+                      titleAr: pack.titleAr,
+                      titleEn: pack.titleEn,
+                      subtitleAr: `شحن فوري لرصيد ${pack.credits.toLocaleString()} وحدة تشغيل في قبس AI`,
+                      subtitleEn: `Instant recharge of ${pack.credits.toLocaleString()} QABS AI credits`,
+                      priceUsd: pack.priceUsd,
+                      details: { creditsAmount: pack.credits }
+                    })
+                  }
+                  className="w-full py-2.5 px-4 rounded-xl border-2 border-[#14243E] dark:border-[#D5B46B] text-[#14243E] dark:text-[#D5B46B] hover:bg-[#14243E] hover:text-white font-black text-xs transition-colors cursor-pointer"
+                >
+                  {isAr ? 'اطلب الخدمة الآن' : 'Order AI Pack Now'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* 5. QABS INTEGRATED SOVEREIGN SERVICES PILLARS */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -302,7 +857,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {/* Pillar 1: US & UK Company Formation */}
           <div
-            onClick={() => onOpenFormationModal('WY')}
+            onClick={() => handleFormationAction('WY')}
             className="p-6 rounded-2xl bg-white dark:bg-[#071D2B] border border-slate-200 dark:border-slate-800 hover:border-[#00A896] shadow-sm hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between space-y-4"
           >
             <div className="space-y-3">
@@ -319,14 +874,14 @@ export const LandingView: React.FC<LandingViewProps> = ({
               </p>
             </div>
             <span className="text-xs font-black text-[#00A896] flex items-center gap-1">
-              <span>{isAr ? 'فتح بوابة التأسيس' : 'Open Formation Wizard'}</span>
+              <span>{isAr ? 'طلب تأسيس شركة' : 'Request Formation'}</span>
               <ArrowRight className="w-3.5 h-3.5 rtl:rotate-180" />
             </span>
           </div>
 
           {/* Pillar 2: EIN, Registered Agent & Annual Renewals */}
           <div
-            onClick={() => setMode('portal')}
+            onClick={handleOpenPortalSafe}
             className="p-6 rounded-2xl bg-white dark:bg-[#071D2B] border border-slate-200 dark:border-slate-800 hover:border-[#00A896] shadow-sm hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between space-y-4"
           >
             <div className="space-y-3">
@@ -343,14 +898,14 @@ export const LandingView: React.FC<LandingViewProps> = ({
               </p>
             </div>
             <span className="text-xs font-black text-[#00A896] flex items-center gap-1">
-              <span>{isAr ? 'إدارة الوثائق والامتثال' : 'Manage Compliance'}</span>
+              <span>{isAr ? 'متابعة الوثائق والامتثال' : 'Manage Compliance'}</span>
               <ArrowRight className="w-3.5 h-3.5 rtl:rotate-180" />
             </span>
           </div>
 
           {/* Pillar 3: QABS Stores & Studio */}
           <div
-            onClick={() => setMode('portal')}
+            onClick={handleOpenPortalSafe}
             className="p-6 rounded-2xl bg-white dark:bg-[#071D2B] border border-slate-200 dark:border-slate-800 hover:border-[#00A896] shadow-sm hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between space-y-4"
           >
             <div className="space-y-3">
@@ -363,7 +918,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
               <p className="text-xs text-slate-500 leading-relaxed">
                 {isAr
                   ? 'متجر إلكتروني مستقل لكل عميل مع لوحة تحكم متكاملة واستوديو تصميم مرئي وعزل كامل للبيانات.'
-                  : 'Independent online store per client with 16-section dashboard, visual QABS Studio, and full isolation.'}
+                  : 'Independent online store per client with full dashboard, visual QABS Studio, and strict isolation.'}
               </p>
             </div>
             <span className="text-xs font-black text-[#00A896] flex items-center gap-1">
@@ -374,7 +929,10 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
           {/* Pillar 4: Global Banking & Payment Gateways */}
           <div
-            onClick={() => setMode('billing')}
+            onClick={() => {
+              const el = document.getElementById('store-packages');
+              el?.scrollIntoView({ behavior: 'smooth' });
+            }}
             className="p-6 rounded-2xl bg-white dark:bg-[#071D2B] border border-slate-200 dark:border-slate-800 hover:border-[#00A896] shadow-sm hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between space-y-4"
           >
             <div className="space-y-3">
@@ -391,7 +949,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
               </p>
             </div>
             <span className="text-xs font-black text-[#00A896] flex items-center gap-1">
-              <span>{isAr ? 'عرض الباقات والمدفوعات' : 'View Plans & Banking'}</span>
+              <span>{isAr ? 'استعراض الباقات وبوابات الدفع' : 'View Plans & Gateways'}</span>
               <ArrowRight className="w-3.5 h-3.5 rtl:rotate-180" />
             </span>
           </div>
@@ -495,7 +1053,8 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 <td className="p-4 text-slate-600 dark:text-slate-400">التجارة الإلكترونية، المتاجر الرقمية، والخدمات عن بعد</td>
                 <td className="p-4 text-center">
                   <button
-                    onClick={() => onOpenFormationModal('WY')}
+                    type="button"
+                    onClick={() => handleFormationAction('WY')}
                     className="px-3 py-1.5 rounded-lg bg-[#004457] hover:bg-[#003342] text-white font-bold text-[11px] cursor-pointer"
                   >
                     {isAr ? 'تأسيس في وايومنغ' : 'Form in WY'}
@@ -512,7 +1071,8 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 <td className="p-4 text-slate-600 dark:text-slate-400">الشركات الناشئة التقنية، جذب الاستثمار وصناديق VC</td>
                 <td className="p-4 text-center">
                   <button
-                    onClick={() => onOpenFormationModal('DE')}
+                    type="button"
+                    onClick={() => handleFormationAction('DE')}
                     className="px-3 py-1.5 rounded-lg bg-[#004457] hover:bg-[#003342] text-white font-bold text-[11px] cursor-pointer"
                   >
                     {isAr ? 'تأسيس في ديلاوير' : 'Form in DE'}
@@ -529,7 +1089,8 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 <td className="p-4 text-slate-600 dark:text-slate-400">أقل تكلفة صيانة سنوية وميزانية اقتصادية</td>
                 <td className="p-4 text-center">
                   <button
-                    onClick={() => onOpenFormationModal('NM')}
+                    type="button"
+                    onClick={() => handleFormationAction('NM')}
                     className="px-3 py-1.5 rounded-lg bg-[#004457] hover:bg-[#003342] text-white font-bold text-[11px] cursor-pointer"
                   >
                     {isAr ? 'تأسيس في نيو مكسيكو' : 'Form in NM'}
@@ -546,7 +1107,8 @@ export const LandingView: React.FC<LandingViewProps> = ({
                 <td className="p-4 text-slate-600 dark:text-slate-400">التجارة مع بريطانيا وأوروبا وبوابات الدفع بالجنيه الإسترليني</td>
                 <td className="p-4 text-center">
                   <button
-                    onClick={() => onOpenFormationModal('UK')}
+                    type="button"
+                    onClick={() => handleFormationAction('UK')}
                     className="px-3 py-1.5 rounded-lg bg-[#004457] hover:bg-[#003342] text-white font-bold text-[11px] cursor-pointer"
                   >
                     {isAr ? 'تأسيس في بريطانيا' : 'Form UK LTD'}
@@ -671,10 +1233,28 @@ export const LandingView: React.FC<LandingViewProps> = ({
                       </div>
 
                       <button
-                        onClick={() => onOpenFormationModal(st.code)}
+                        type="button"
+                        onClick={() =>
+                          isAuthenticated
+                            ? onOpenFormationModal(st.code)
+                            : requestServiceAction({
+                                id: `svc_state_${st.code}_${Date.now()}`,
+                                serviceType: 'company_formation',
+                                titleAr: `تأسيس شركة في ${st.nameAr} (${selectedPkg.nameAr})`,
+                                titleEn: `Form Company in ${st.nameEn} (${selectedPkg.nameEn})`,
+                                subtitleAr: `رسوم الولاية: $${st.stateFilingFee} + باقة ${selectedPkg.nameAr}`,
+                                subtitleEn: `State fee: $${st.stateFilingFee} + ${selectedPkg.nameEn}`,
+                                priceUsd: totalWithPkg,
+                                details: {
+                                  jurisdiction: st.jurisdictionId as 'US_WYOMING' | 'US_DELAWARE' | 'US_KENTUCKY' | 'US_NEW_MEXICO' | 'UK_LTD',
+                                  entityType: 'LLC',
+                                  addons: { ein: true, physicalAddressAgent: true, businessBank: false, stripePayPal: false }
+                                }
+                              })
+                        }
                         className="w-full py-2 rounded-xl bg-[#004457] hover:bg-[#003342] text-white text-xs font-bold cursor-pointer"
                       >
-                        {isAr ? `تأسيس في ${st.nameAr}` : `Form in ${st.nameEn}`}
+                        {isAr ? `اطلب التأسيس في ${st.nameAr}` : `Order in ${st.nameEn}`}
                       </button>
                     </div>
                   );
@@ -750,16 +1330,18 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
           <div className="flex flex-col sm:flex-row lg:flex-col gap-3 shrink-0">
             <button
-              onClick={() => onOpenFormationModal('WY')}
+              type="button"
+              onClick={() => handleFormationAction('WY')}
               className="px-6 py-3.5 rounded-xl bg-[#E5C158] hover:bg-[#d8b44c] text-slate-950 font-black text-xs sm:text-sm transition-all cursor-pointer shadow-lg text-center"
             >
               {isAr ? 'ابدأ تأسيس شركتك الآن' : 'Start Formation Now'}
             </button>
             <button
-              onClick={() => setMode('portal')}
+              type="button"
+              onClick={handleOpenPortalSafe}
               className="px-6 py-3.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-black text-xs sm:text-sm transition-all cursor-pointer text-center"
             >
-              {isAr ? 'الدخول إلى البوابة الموحدة' : 'Open Unified Portal'}
+              {isAuthenticated ? (isAr ? 'الدخول إلى مساحة العمل' : 'Open Workspace') : isAr ? 'تسجيل الدخول / حسابي' : 'Sign In / My Account'}
             </button>
             <a
               href={`https://wa.me/${siteContent.whatsappNumber.replace(/[^0-9]/g, '')}`}

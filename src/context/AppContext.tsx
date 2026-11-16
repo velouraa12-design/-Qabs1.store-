@@ -24,9 +24,11 @@ import {
   StoreTemplatePreset,
   StoreSectionBlock,
   AICommandHistoryItem,
-  WorkspaceSectionSettings
+  WorkspaceSectionSettings,
+  PendingServiceOrder
 } from '../types/index.ts';
 import {
+  OWNER_USER_PROFILE,
   INITIAL_USER,
   INITIAL_COMPANIES,
   INITIAL_STORES,
@@ -141,13 +143,26 @@ interface AppContextType {
   exportWorkspaceBackupJson: () => string;
   importWorkspaceBackupJson: (jsonText: string) => boolean;
   resetWorkspaceData: () => void;
-  // Auth state & modals
+  // Auth & Service Order Gate state
+  isAuthenticated: boolean;
+  isOwner: boolean;
+  authIntent: 'client' | 'owner';
+  setAuthIntent: (intent: 'client' | 'owner') => void;
+  openClientAuth: (initialMode?: 'login' | 'register') => void;
+  openOwnerAuth: () => void;
+  pendingServiceOrder: PendingServiceOrder | null;
+  setPendingServiceOrder: (order: PendingServiceOrder | null) => void;
+  checkoutModalOpen: boolean;
+  setCheckoutModalOpen: (open: boolean) => void;
+  requestServiceAction: (order: PendingServiceOrder) => void;
+  completeServiceCheckout: (paymentMethod: 'Stripe' | 'PayPal' | 'Crypto' | 'BankTransfer') => void;
   authModalOpen: boolean;
   setAuthModalOpen: (open: boolean) => void;
   authMode: 'login' | 'register' | 'recover';
   setAuthMode: (mode: 'login' | 'register' | 'recover') => void;
   login: (email: string, role: UserRole) => void;
-  register: (name: string, email: string, companyName: string, role: UserRole) => void;
+  loginOwner: (email?: string) => void;
+  register: (name: string, email: string, companyName: string, role?: UserRole) => void;
   logout: () => void;
   toastMessage: string | null;
   showToast: (msg: string) => void;
@@ -230,6 +245,8 @@ export const DEFAULT_SECTION_SETTINGS: WorkspaceSectionSettings = {
 };
 
 interface PersistedWorkspaceState {
+  isAuthenticated?: boolean;
+  pendingServiceOrder?: PendingServiceOrder | null;
   isProductionMode?: boolean;
   user?: UserProfile;
   companies?: CompanyFormation[];
@@ -297,9 +314,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return (localStorage.getItem('qabs_theme_v2') as 'dark' | 'light') || 'light';
   });
 
-  const [mode, setMode] = useState<AppMode>(() => (isWorkspaceUrl() ? 'portal' : 'landing'));
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(persisted.isAuthenticated ?? false);
+  const [mode, setMode] = useState<AppMode>(() =>
+    persisted.isAuthenticated && isWorkspaceUrl() ? 'portal' : 'landing'
+  );
   const [isProductionMode, setIsProductionMode] = useState<boolean>(persisted.isProductionMode ?? false);
-  const [user, setUser] = useState<UserProfile>(persisted.user ?? INITIAL_USER);
+  const [user, setUser] = useState<UserProfile>(() =>
+    persisted.isAuthenticated && persisted.user ? persisted.user : INITIAL_USER
+  );
   const [companies, setCompanies] = useState<CompanyFormation[]>(persisted.companies ?? INITIAL_COMPANIES);
   const [stores, setStores] = useState<StoreInstance[]>(persisted.stores ?? INITIAL_STORES);
   const [activeStoreId, setActiveStoreId] = useState<string>(
@@ -316,7 +338,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [banking, setBanking] = useState<BankingAccount[]>(persisted.banking ?? INITIAL_BANKING);
   const [tickets, setTickets] = useState<SupportTicket[]>(persisted.tickets ?? INITIAL_TICKETS);
-  const [staff, setStaff] = useState<StaffMember[]>(persisted.staff ?? INITIAL_STAFF);
+  const [staff, setStaff] = useState<StaffMember[]>(() => {
+    const legacyMockIds = new Set(['stf_01', 'stf_02', 'stf_03']);
+    const legacyNames = ['عبدالله السعدي', 'سارة المنصوري', 'ماجد الحربي', 'كريم عادل'];
+    if (!Array.isArray(persisted.staff)) return INITIAL_STAFF;
+    return persisted.staff.filter(
+      m => !legacyMockIds.has(m.id) && !legacyNames.some(n => m.name.includes(n))
+    );
+  });
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>(persisted.auditLogs ?? INITIAL_AUDIT_LOGS);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -344,13 +373,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }));
 
-  // Auth modal states
+  // Auth & Checkout modal states
   const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
   const [authMode, setAuthMode] = useState<'login' | 'register' | 'recover'>('login');
+  const [authIntent, setAuthIntent] = useState<'client' | 'owner'>('client');
+  const [pendingServiceOrder, setPendingServiceOrder] = useState<PendingServiceOrder | null>(
+    persisted.pendingServiceOrder ?? null
+  );
+  const [checkoutModalOpen, setCheckoutModalOpen] = useState<boolean>(false);
+
+  const isOwner = isAuthenticated && user.role === 'super_admin';
 
   useEffect(() => {
     try {
       const payload: PersistedWorkspaceState = {
+        isAuthenticated,
+        pendingServiceOrder,
         isProductionMode,
         user,
         companies,
@@ -379,6 +417,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Ignore storage quota errors
     }
   }, [
+    isAuthenticated,
+    pendingServiceOrder,
     isProductionMode,
     user,
     companies,
@@ -449,23 +489,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const switchRole = (newRole: UserRole) => {
-    setUser(prev => ({
-      ...prev,
-      role: newRole,
-      name:
-        newRole === 'super_admin'
-          ? 'عبدالله السعدي (إدارة قبس المركزية)'
-          : newRole === 'merchant'
-          ? 'محمد الخالدي (مالك متجر قبس)'
-          : newRole === 'compliance_officer'
-          ? 'سارة المنصوري (مراجعة واعتماد المتاجر)'
-          : 'كريم عادل (دعم المتاجر)'
-    }));
-    showToast(
-      language === 'ar'
-        ? `تم التبديل إلى صلاحيات: ${newRole === 'super_admin' ? 'إدارة قبس المركزية' : 'مالك المتجر'}`
-        : `Switched perspective to: ${newRole}`
-    );
+    if (newRole === 'super_admin') {
+      setUser(OWNER_USER_PROFILE);
+      setIsAuthenticated(true);
+      showToast(language === 'ar' ? 'تم التبديل إلى حساب المالك الوحيد: أنور الغزالي (Super Admin)' : 'Switched to Owner: Anwar Al-Ghazali (Super Admin)');
+    } else {
+      setUser(prev => ({
+        ...prev,
+        id: prev.id === 'owner_anwar' || prev.id === 'guest' ? 'usr_client_01' : prev.id,
+        role: 'merchant',
+        name: prev.id === 'owner_anwar' || prev.id === 'guest' ? 'عميل منصة قبس' : prev.name
+      }));
+      setIsAuthenticated(true);
+      showToast(language === 'ar' ? 'تم التبديل إلى لوحة العميل' : 'Switched to Client Dashboard');
+    }
   };
 
   const addCompany = (comp: Omit<CompanyFormation, 'id' | 'filingDate' | 'status' | 'documents'>) => {
@@ -1398,46 +1435,222 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  const login = (email: string, role: UserRole) => {
-    setUser(prev => ({
-      ...prev,
-      email,
-      role,
-      name:
-        role === 'super_admin'
-          ? 'عبدالله السعدي (إدارة قبس المركزية)'
-          : role === 'merchant'
-          ? 'محمد الخالدي (مالك متجر قبس)'
-          : 'سارة المنصوري (فريق قبس)'
-    }));
-    setAuthModalOpen(false);
-    showToast(language === 'ar' ? `مرحباً بك في منصة متاجر قبس!` : `Welcome to QABS Stores!`);
+  const openClientAuth = (initialMode: 'login' | 'register' = 'login') => {
+    setAuthIntent('client');
+    setAuthMode(initialMode);
+    setAuthModalOpen(true);
   };
 
-  const register = (name: string, email: string, companyName: string, role: UserRole) => {
+  const openOwnerAuth = () => {
+    setAuthIntent('owner');
+    setAuthMode('login');
+    setAuthModalOpen(true);
+  };
+
+  const requestServiceAction = (order: PendingServiceOrder) => {
+    setPendingServiceOrder(order);
+    if (!isAuthenticated) {
+      setAuthIntent('client');
+      setAuthMode('login');
+      setAuthModalOpen(true);
+      showToast(
+        language === 'ar'
+          ? 'يرجى تسجيل الدخول أو إنشاء حساب سريع لإتمام طلبك'
+          : 'Please sign in or create an account to complete your order'
+      );
+    } else {
+      setCheckoutModalOpen(true);
+    }
+  };
+
+  const completeServiceCheckout = (paymentMethod: 'Stripe' | 'PayPal' | 'Crypto' | 'BankTransfer') => {
+    if (!pendingServiceOrder) return;
+    const ord = pendingServiceOrder;
+    const d = ord.details || {};
+
+    if (ord.serviceType === 'company_formation') {
+      const jur = d.jurisdiction || 'US_WYOMING';
+      const suffix = d.entityType || (jur === 'UK_LTD' ? 'LTD' : 'LLC');
+      const baseName = (d.companyName || `${user.companyName || user.name || 'QABS VENTURES'}`).trim().toUpperCase();
+      const companyName = baseName.endsWith(suffix) ? baseName : `${baseName} ${suffix}`;
+      const addrMap: Record<string, { agent: string; address: string }> = {
+        US_KENTUCKY: {
+          agent: 'QABS Kentucky Registered Agent Services',
+          address: '400 W Market St Ste 1800, Louisville, KY 40202, USA'
+        },
+        US_WYOMING: {
+          agent: 'Northwest Registered Agent LLC (Cheyenne, WY)',
+          address: '30 N Gould St Ste R, Sheridan, WY 82801, USA'
+        },
+        US_DELAWARE: {
+          agent: 'The Corporation Trust Company (Wilmington, DE)',
+          address: '1209 N Orange St, Wilmington, DE 19801, USA'
+        },
+        US_NEW_MEXICO: {
+          agent: 'QABS New Mexico Statutory Agent LLC',
+          address: '1209 Mountain Rd Pl NE, Albuquerque, NM 87110, USA'
+        },
+        UK_LTD: {
+          agent: 'QABS UK Company Secretarial & Registered Office',
+          address: '71-75 Shelton Street, Covent Garden, London, WC2H 9JQ, UK'
+        }
+      };
+      const meta = addrMap[jur] || addrMap.US_WYOMING;
+      addCompany({
+        companyName,
+        jurisdiction: jur,
+        entityType: suffix,
+        registeredAgent: meta.agent,
+        registeredAddress: meta.address,
+        renewalDueDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        activity: 'التجارة الإلكترونية والخدمات الدولية',
+        ownerName: user.name,
+        ownerEmail: user.email,
+        packagePriceUsd: ord.priceUsd,
+        addons: d.addons || {
+          ein: true,
+          physicalAddressAgent: true,
+          businessBank: false,
+          stripePayPal: false
+        },
+        formationStage: 1,
+        notes: `تم الدفع عبر ${paymentMethod} — طلب من واجهة العرض العامة`
+      });
+      setCheckoutModalOpen(false);
+      setPendingServiceOrder(null);
+      setMode('portal');
+      if (typeof window !== 'undefined') window.history.replaceState({ qabsWorkspace: 'company_formation' }, '', '#/company-formation');
+      showToast(language === 'ar' ? `تم دفع طلب تأسيس "${companyName}" وحفظه في مساحة العمل!` : `Formation order paid & saved!`);
+      return;
+    }
+
+    if (ord.serviceType === 'store_package') {
+      const planId = d.planId || 'growth';
+      const cycle = d.billingCycle || 'monthly';
+      changeSubscriptionPlan(planId, cycle);
+      if (d.storeName || planId) {
+        const name = d.storeName?.trim() || `${user.companyName || user.name} Store`;
+        const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 14) || `store${Math.floor(100 + Math.random() * 899)}`;
+        addStore({
+          name,
+          ownerName: user.name,
+          ownerEmail: user.email,
+          activityAr: 'متجر إلكتروني مستقل — باقة قبس المعتمدة',
+          activityEn: 'Independent QABS Store',
+          country: 'SA',
+          defaultLanguage: 'both',
+          subdomain: `${slug}.qabs1.store`,
+          currency: 'SAR',
+          taxRate: 15,
+          theme: 'gold_executive',
+          templateId: 'tpl_luxury_royal',
+          primaryColor: '#14243E',
+          accentColor: '#D5B46B',
+          fontFamily: 'Cairo',
+          status: 'draft',
+          approvalStatus: 'draft',
+          paymentConnected: false,
+          paymentApprovalStatus: 'unconfigured',
+          gatewayType: paymentMethod === 'PayPal' ? 'PayPal' : 'Stripe'
+        });
+      }
+      setCheckoutModalOpen(false);
+      setPendingServiceOrder(null);
+      setMode('portal');
+      if (typeof window !== 'undefined') window.history.replaceState({ qabsWorkspace: 'my_stores' }, '', '#/stores');
+      showToast(language === 'ar' ? `تم تفعيل باقة المتجر بنجاح عبر ${paymentMethod}!` : `Store package activated via ${paymentMethod}!`);
+      return;
+    }
+
+    if (ord.serviceType === 'ai_credits') {
+      const amount = d.creditsAmount || Math.max(50, ord.priceUsd * 10);
+      topUpCredits(amount);
+      setCheckoutModalOpen(false);
+      setPendingServiceOrder(null);
+      setMode('portal');
+      if (typeof window !== 'undefined') window.history.replaceState({ qabsWorkspace: 'qabs_ai' }, '', '#/qabs-ai');
+      showToast(language === 'ar' ? `تم شحن +${amount} رصيد قبس AI بنجاح!` : `Recharged +${amount} QABS AI credits!`);
+    }
+  };
+
+  const login = (email: string, role: UserRole) => {
+    const cleanEmail = email.trim() || (role === 'super_admin' ? OWNER_USER_PROFILE.email : 'client@qabs1.store');
+    if (role === 'super_admin') {
+      setUser({
+        ...OWNER_USER_PROFILE,
+        email: cleanEmail
+      });
+    } else {
+      const friendlyName = cleanEmail.split('@')[0] || 'عميل منصة قبس';
+      setUser({
+        id: `usr_client_${Date.now()}`,
+        name: friendlyName,
+        email: cleanEmail,
+        role: 'merchant',
+        avatar: '',
+        companyName: '',
+        credits: 250
+      });
+    }
+    setIsAuthenticated(true);
+    setAuthModalOpen(false);
+
+    if (pendingServiceOrder) {
+      setCheckoutModalOpen(true);
+      showToast(
+        language === 'ar'
+          ? 'تم تسجيل الدخول! تابع إتمام الدفع لخدمتك المختارة'
+          : 'Signed in! Complete checkout for your selected service'
+      );
+    } else if (role === 'super_admin') {
+      setMode('admin');
+      showToast(language === 'ar' ? `أهلاً بك ${OWNER_USER_PROFILE.name} — لوحة الإدارة الكاملة` : 'Welcome Owner Anwar Al-Ghazali');
+    } else {
+      setMode('portal');
+      showToast(language === 'ar' ? 'مرحباً بك في مساحة عملك الخاصة!' : 'Welcome to your client workspace!');
+    }
+  };
+
+  const loginOwner = (email?: string) => {
+    login(email?.trim() || OWNER_USER_PROFILE.email, 'super_admin');
+  };
+
+  const register = (name: string, email: string, companyName: string, _role?: UserRole) => {
     setUser({
-      id: `usr_${Date.now()}`,
-      name,
-      email,
-      role,
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-      companyName,
+      id: `usr_client_${Date.now()}`,
+      name: name.trim(),
+      email: email.trim(),
+      role: 'merchant',
+      avatar: '',
+      companyName: companyName.trim(),
       credits: 200
     });
+    setIsAuthenticated(true);
     setAuthModalOpen(false);
-    showToast(language === 'ar' ? 'تم إنشاء حساب التاجر بنجاح!' : 'Merchant account created successfully!');
+
+    if (pendingServiceOrder) {
+      setCheckoutModalOpen(true);
+      showToast(
+        language === 'ar'
+          ? 'تم إنشاء حسابك! أكمل الآن دفع الخدمة التي اخترتها'
+          : 'Account created! Complete checkout for your selected service'
+      );
+    } else {
+      setMode('portal');
+      showToast(language === 'ar' ? 'تم إنشاء حساب العميل وفتح مساحة العمل!' : 'Client account created successfully!');
+    }
   };
 
   const logout = () => {
-    setUser({
-      id: 'guest',
-      name: 'زائر متاجر قبس',
-      email: 'guest@qabs1.store',
-      role: 'merchant',
-      avatar: '',
-      credits: 0
-    });
-    showToast(language === 'ar' ? 'تم تسجيل الخروج' : 'Logged out');
+    setIsAuthenticated(false);
+    setUser(INITIAL_USER);
+    setPendingServiceOrder(null);
+    setCheckoutModalOpen(false);
+    setMode('landing');
+    if (typeof window !== 'undefined' && window.location.hash) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+    showToast(language === 'ar' ? 'تم تسجيل الخروج والعودة للواجهة العامة' : 'Logged out to public showcase');
   };
 
   // --- SHOPIFY ADMIN API SYNC ---
@@ -1784,6 +1997,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const resetWorkspaceData = () => {
     localStorage.removeItem(STORAGE_KEY);
+    setIsAuthenticated(false);
+    setPendingServiceOrder(null);
+    setCheckoutModalOpen(false);
+    setMode('landing');
     setIsProductionMode(false);
     setUser(INITIAL_USER);
     setCompanies(INITIAL_COMPANIES);
@@ -1892,11 +2109,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         exportWorkspaceBackupJson,
         importWorkspaceBackupJson,
         resetWorkspaceData,
+        isAuthenticated,
+        isOwner,
+        authIntent,
+        setAuthIntent,
+        openClientAuth,
+        openOwnerAuth,
+        pendingServiceOrder,
+        setPendingServiceOrder,
+        checkoutModalOpen,
+        setCheckoutModalOpen,
+        requestServiceAction,
+        completeServiceCheckout,
         authModalOpen,
         setAuthModalOpen,
         authMode,
         setAuthMode,
         login,
+        loginOwner,
         register,
         logout,
         toastMessage,

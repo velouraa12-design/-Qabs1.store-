@@ -1,7 +1,18 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext.tsx';
-import { X, Lock, Mail, User, Building, ShieldCheck, KeyRound, CheckCircle2 } from 'lucide-react';
-import { UserRole } from '../types/index.ts';
+import { OWNER_USER_PROFILE } from '../data/mockData.ts';
+import {
+  X,
+  Lock,
+  Mail,
+  User,
+  Building,
+  ShieldCheck,
+  KeyRound,
+  CheckCircle2,
+  Crown,
+  ShoppingBag
+} from 'lucide-react';
 
 export const AuthModal: React.FC = () => {
   const {
@@ -10,7 +21,11 @@ export const AuthModal: React.FC = () => {
     setAuthModalOpen,
     authMode,
     setAuthMode,
+    authIntent,
+    setAuthIntent,
+    pendingServiceOrder,
     login,
+    loginOwner,
     register,
     showToast
   } = useApp();
@@ -21,26 +36,31 @@ export const AuthModal: React.FC = () => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [companyName, setCompanyName] = useState('');
-  const [selectedRole, setSelectedRole] = useState<UserRole>('merchant');
   const [resetSent, setResetSent] = useState(false);
 
   if (!authModalOpen) return null;
 
+  const isOwnerIntent = authIntent === 'owner';
+
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
-    login(email, selectedRole);
+    if (isOwnerIntent) {
+      loginOwner(email.trim() || OWNER_USER_PROFILE.email);
+      return;
+    }
+    if (!email.trim()) return;
+    login(email.trim(), 'merchant');
   };
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !name) return;
-    register(name, email, companyName || 'QABS Merchant LLC', selectedRole);
+    if (!email.trim() || !name.trim()) return;
+    register(name.trim(), email.trim(), companyName.trim() || 'QABS Client Venture', 'merchant');
   };
 
   const handleRecoverSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
+    if (!email.trim()) return;
     setResetSent(true);
     showToast(
       isAr
@@ -55,325 +75,382 @@ export const AuthModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-      <div className="bg-[#082030] border border-cyan-950/80 rounded-xl shadow-2xl max-w-md w-full text-slate-100 flex flex-col overflow-hidden">
+      <div className="bg-[#082030] border border-[#D5B46B]/50 rounded-2xl shadow-2xl max-w-md w-full text-slate-100 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-cyan-950/60 bg-[#03131D]/80">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-[#D4AF37]/10 text-[#D4AF37] rounded-lg border border-[#D4AF37]/20">
-              <Lock className="w-4 h-4" />
+        <div className="flex items-center justify-between px-6 py-4 border-b border-cyan-950/60 bg-[#03131D]/90">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-[#D5B46B]/15 text-[#D5B46B] rounded-xl border border-[#D5B46B]/30">
+              {isOwnerIntent ? <Crown className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white">
-                {authMode === 'login'
+              <h2 className="text-sm font-black text-white">
+                {isOwnerIntent
                   ? isAr
-                    ? 'تسجيل الدخول إلى منصة قبس'
-                    : 'Sign In to QABS'
+                    ? 'دخول لوحة الإدارة (المالك)'
+                    : 'Owner Admin Portal Sign In'
+                  : authMode === 'login'
+                  ? isAr
+                    ? 'تسجيل الدخول / حسابي'
+                    : 'Client Sign In / My Account'
                   : authMode === 'register'
                   ? isAr
-                    ? 'إنشاء حساب جديد'
-                    : 'Create QABS Account'
+                    ? 'إنشاء حساب عميل سريع'
+                    : 'Quick Client Registration'
                   : isAr
                   ? 'استعادة كلمة المرور'
                   : 'Recover Password'}
               </h2>
               <p className="text-[11px] text-slate-400">
-                {isAr ? 'نظام المصادقة والصلاحيات الآمن (RBAC)' : 'Secure Role-Based Authentication'}
+                {isOwnerIntent
+                  ? isAr
+                    ? `حساب المالك الوحيد: ${OWNER_USER_PROFILE.name} (Super Admin)`
+                    : `Sole Owner: ${OWNER_USER_PROFILE.name} (Super Admin)`
+                  : isAr
+                  ? 'بوابة عملاء قبس — تأسيس الشركات والمتاجر والطلبات'
+                  : 'QABS Client Portal — Companies, Stores & Orders'}
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={() => setAuthModalOpen(false)}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+            aria-label={isAr ? 'إغلاق' : 'Close'}
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Tab switcher */}
-        <div className="flex border-b border-cyan-950/40 bg-[#051724] text-xs">
-          <button
-            onClick={() => setAuthMode('login')}
-            className={`flex-1 py-2.5 font-medium transition-colors cursor-pointer text-center ${
-              authMode === 'login'
-                ? 'text-[#D4AF37] border-b-2 border-[#D4AF37] font-bold bg-[#082030]'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            {isAr ? 'تسجيل الدخول' : 'Sign In'}
-          </button>
-          <button
-            onClick={() => setAuthMode('register')}
-            className={`flex-1 py-2.5 font-medium transition-colors cursor-pointer text-center ${
-              authMode === 'register'
-                ? 'text-[#00A389] border-b-2 border-[#00A389] font-bold bg-[#082030]'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            {isAr ? 'حساب جديد' : 'Register'}
-          </button>
-          <button
-            onClick={() => setAuthMode('recover')}
-            className={`flex-1 py-2.5 font-medium transition-colors cursor-pointer text-center ${
-              authMode === 'recover'
-                ? 'text-cyan-400 border-b-2 border-cyan-400 font-bold bg-[#082030]'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            {isAr ? 'استعادة' : 'Recover'}
-          </button>
-        </div>
+        {/* Auth Gate Notice when Pending Service Order exists */}
+        {pendingServiceOrder && !isOwnerIntent && (
+          <div className="px-6 py-3 bg-[#14243E] border-b border-[#D5B46B]/40 flex items-start gap-2.5">
+            <ShoppingBag className="w-4 h-4 text-[#D5B46B] shrink-0 mt-0.5" />
+            <div className="space-y-1 text-xs">
+              <p className="font-bold text-[#F3E5AB] leading-relaxed">
+                {isAr
+                  ? 'يرجى تسجيل الدخول أو إنشاء حساب سريع لإتمام طلبك وحفظ مستنداتك في مساحة العمل'
+                  : 'Please sign in or create a quick account to complete your order and save your documents in the workspace.'}
+              </p>
+              <div className="flex items-center justify-between text-[11px] text-slate-300 pt-0.5">
+                <span className="truncate font-semibold">
+                  {isAr ? pendingServiceOrder.titleAr : pendingServiceOrder.titleEn}
+                </span>
+                <span className="font-mono font-black text-[#D5B46B] shrink-0 ms-2">
+                  ${pendingServiceOrder.priceUsd}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab switcher (only for Client auth; Owner has dedicated single login) */}
+        {!isOwnerIntent && (
+          <div className="flex border-b border-cyan-950/40 bg-[#051724] text-xs">
+            <button
+              type="button"
+              onClick={() => setAuthMode('login')}
+              className={`flex-1 py-2.5 font-medium transition-colors cursor-pointer text-center ${
+                authMode === 'login'
+                  ? 'text-[#D5B46B] border-b-2 border-[#D5B46B] font-bold bg-[#082030]'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              {isAr ? 'تسجيل الدخول' : 'Sign In'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setAuthMode('register')}
+              className={`flex-1 py-2.5 font-medium transition-colors cursor-pointer text-center ${
+                authMode === 'register'
+                  ? 'text-[#00A389] border-b-2 border-[#00A389] font-bold bg-[#082030]'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              {isAr ? 'حساب سريع جديد' : 'Quick Register'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setAuthMode('recover')}
+              className={`flex-1 py-2.5 font-medium transition-colors cursor-pointer text-center ${
+                authMode === 'recover'
+                  ? 'text-cyan-400 border-b-2 border-cyan-400 font-bold bg-[#082030]'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              {isAr ? 'استعادة' : 'Recover'}
+            </button>
+          </div>
+        )}
 
         {/* Form Body */}
         <div className="p-6 space-y-4">
-          {authMode === 'login' && (
+          {isOwnerIntent ? (
             <form onSubmit={handleLoginSubmit} className="space-y-4">
+              <div className="p-3.5 rounded-xl bg-[#051724] border border-[#D5B46B]/40 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#D5B46B]/15 text-[#D5B46B] flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div className="text-xs">
+                  <div className="font-black text-white">{OWNER_USER_PROFILE.name}</div>
+                  <div className="text-[11px] text-[#D5B46B] font-bold">
+                    {isAr ? 'المالك والمدير العام الوحيد (Super Admin)' : 'Sole Owner & Super Admin'}
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  {isAr ? 'البريد الإلكتروني' : 'Email Address'}
+                  {isAr ? 'بريد المالك الإلكتروني' : 'Owner Email Address'}
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
                   <input
                     type="email"
-                    required
-                    placeholder="founder@qabs1.store"
+                    placeholder={OWNER_USER_PROFILE.email}
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    className="w-full bg-[#051724] border border-cyan-950 rounded-lg pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-[#D4AF37]"
+                    className="w-full bg-[#051724] border border-cyan-950 rounded-lg pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-[#D5B46B]"
                   />
                 </div>
               </div>
 
-              <div>
-                <div className="flex justify-between items-center mb-1.5">
-                  <label className="text-xs font-semibold text-slate-300">
-                    {isAr ? 'كلمة المرور' : 'Password'}
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setAuthMode('recover')}
-                    className="text-[11px] text-[#D4AF37] hover:underline"
-                  >
-                    {isAr ? 'نسيت كلمة المرور؟' : 'Forgot Password?'}
-                  </button>
-                </div>
-                <div className="relative">
-                  <KeyRound className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                  <input
-                    type="password"
-                    required
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    className="w-full bg-[#051724] border border-cyan-950 rounded-lg pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-[#D4AF37]"
-                  />
-                </div>
-              </div>
-
-              {/* Role selection */}
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  {isAr ? 'اختر مستوى الصلاحيات للدخول (RBAC Role)' : 'Select Permission Role to Login'}
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRole('super_admin')}
-                    className={`p-2 rounded-lg border text-center transition-all cursor-pointer ${
-                      selectedRole === 'super_admin'
-                        ? 'border-[#D4AF37] bg-[#D4AF37]/15 text-[#D4AF37] font-bold'
-                        : 'border-slate-800 bg-[#051724] text-slate-400'
-                    }`}
-                  >
-                    <div className="text-[11px]">Super Admin</div>
-                    <div className="text-[9px] text-slate-500">{isAr ? 'إدارة كاملة' : 'Full access'}</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRole('merchant')}
-                    className={`p-2 rounded-lg border text-center transition-all cursor-pointer ${
-                      selectedRole === 'merchant'
-                        ? 'border-[#00A389] bg-[#00A389]/15 text-[#00A389] font-bold'
-                        : 'border-slate-800 bg-[#051724] text-slate-400'
-                    }`}
-                  >
-                    <div className="text-[11px]">Merchant</div>
-                    <div className="text-[9px] text-slate-500">{isAr ? 'تاجر / عميل' : 'Customer'}</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRole('compliance_officer')}
-                    className={`p-2 rounded-lg border text-center transition-all cursor-pointer ${
-                      selectedRole === 'compliance_officer'
-                        ? 'border-cyan-400 bg-cyan-950/30 text-cyan-300 font-bold'
-                        : 'border-slate-800 bg-[#051724] text-slate-400'
-                    }`}
-                  >
-                    <div className="text-[11px]">Officer</div>
-                    <div className="text-[9px] text-slate-500">{isAr ? 'امتثال وقانون' : 'Compliance'}</div>
-                  </button>
-                </div>
-              </div>
-
-              {/* Fast Demo Logins */}
-              <div className="p-2.5 rounded-lg bg-[#051724] border border-cyan-950/60 text-[11px] space-y-1.5">
-                <span className="text-slate-400 font-semibold block">
-                  {isAr ? 'دخول تجريبي سريع بنقرة واحدة:' : 'Instant Demo Login Presets:'}
-                </span>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('admin@qabs1.store');
-                      setPassword('demo123456');
-                      setSelectedRole('super_admin');
-                      login('admin@qabs1.store', 'super_admin');
-                    }}
-                    className="flex-1 py-1 bg-slate-800 hover:bg-slate-700 text-[#D4AF37] font-semibold rounded text-[10px] cursor-pointer"
-                  >
-                    Super Admin
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('merchant@qabs1.store');
-                      setPassword('demo123456');
-                      setSelectedRole('merchant');
-                      login('merchant@qabs1.store', 'merchant');
-                    }}
-                    className="flex-1 py-1 bg-slate-800 hover:bg-slate-700 text-[#00A389] font-semibold rounded text-[10px] cursor-pointer"
-                  >
-                    Merchant / Customer
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-2.5 bg-gradient-to-r from-[#D4AF37] to-[#F3E5AB] text-slate-950 font-bold rounded-lg text-xs hover:from-[#C59B27] hover:to-[#E5D28A] transition-all cursor-pointer shadow-md"
-              >
-                {isAr ? 'تسجيل الدخول' : 'Sign In Now'}
-              </button>
-            </form>
-          )}
-
-          {authMode === 'register' && (
-            <form onSubmit={handleRegisterSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  {isAr ? 'الاسم الكامل' : 'Full Name'}
-                </label>
-                <div className="relative">
-                  <User className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                  <input
-                    type="text"
-                    required
-                    placeholder={isAr ? 'عبدالله محمد' : 'Abdullah Mohammed'}
-                    value={name}
-                    onChange={e => setName(e.target.value)}
-                    className="w-full bg-[#051724] border border-cyan-950 rounded-lg pl-9 pr-3 py-2 text-xs text-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  {isAr ? 'البريد الإلكتروني' : 'Email Address'}
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                  <input
-                    type="email"
-                    required
-                    placeholder="name@company.com"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    className="w-full bg-[#051724] border border-cyan-950 rounded-lg pl-9 pr-3 py-2 text-xs text-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  {isAr ? 'اسم الشركة أو العلامة التجارية' : 'Company or Brand Name'}
-                </label>
-                <div className="relative">
-                  <Building className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                  <input
-                    type="text"
-                    placeholder="e.g. Atlas Ventures LLC"
-                    value={companyName}
-                    onChange={e => setCompanyName(e.target.value)}
-                    className="w-full bg-[#051724] border border-cyan-950 rounded-lg pl-9 pr-3 py-2 text-xs text-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  {isAr ? 'كلمة المرور' : 'Password'}
+                  {isAr ? 'رمز الدخول الإداري' : 'Admin Password'}
                 </label>
                 <div className="relative">
                   <KeyRound className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
                   <input
                     type="password"
-                    required
                     placeholder="••••••••"
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    className="w-full bg-[#051724] border border-cyan-950 rounded-lg pl-9 pr-3 py-2 text-xs text-white"
+                    className="w-full bg-[#051724] border border-cyan-950 rounded-lg pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-[#D5B46B]"
                   />
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-gradient-to-r from-[#00A389] to-[#2DD4BF] text-slate-950 font-bold rounded-lg text-xs hover:from-[#008F78] hover:to-[#14B8A6] transition-all cursor-pointer shadow-md"
+                className="w-full py-2.5 bg-gradient-to-r from-[#D5B46B] to-[#F3E5AB] text-slate-950 font-black rounded-xl text-xs hover:opacity-95 transition-all cursor-pointer shadow-md"
               >
-                {isAr ? 'إنشاء الحساب وبدء التجربة' : 'Create Free Account'}
-              </button>
-            </form>
-          )}
-
-          {authMode === 'recover' && (
-            <form onSubmit={handleRecoverSubmit} className="space-y-4">
-              <p className="text-xs text-slate-300 leading-relaxed">
                 {isAr
-                  ? 'أدخل بريدك الإلكتروني المسجل وسنرسل لك رابطاً مشفراً لإعادة تعيين كلمة المرور فوراً.'
-                  : 'Enter your registered email address and we will dispatch a secure password reset token.'}
-              </p>
+                  ? `دخول لوحة الإدارة كـ ${OWNER_USER_PROFILE.name}`
+                  : `Sign In as Owner (${OWNER_USER_PROFILE.name})`}
+              </button>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  {isAr ? 'البريد الإلكتروني' : 'Email Address'}
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                  <input
-                    type="email"
-                    required
-                    placeholder="user@example.com"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    className="w-full bg-[#051724] border border-cyan-950 rounded-lg pl-9 pr-3 py-2 text-xs text-white"
-                  />
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthIntent('client');
+                  setAuthMode('login');
+                }}
+                className="w-full text-center text-[11px] text-slate-400 hover:text-[#D5B46B] cursor-pointer pt-1"
+              >
+                {isAr ? 'هل أنت عميل؟ الانتقال لتسجيل دخول العملاء' : 'Are you a client? Switch to Client Sign In'}
+              </button>
+            </form>
+          ) : (
+            <>
+              {authMode === 'login' && (
+                <form onSubmit={handleLoginSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                      {isAr ? 'البريد الإلكتروني' : 'Email Address'}
+                    </label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                      <input
+                        type="email"
+                        required
+                        placeholder="client@company.com"
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        className="w-full bg-[#051724] border border-cyan-950 rounded-lg pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-[#D5B46B]"
+                      />
+                    </div>
+                  </div>
 
-              {resetSent && (
-                <div className="p-3 bg-emerald-950/60 border border-emerald-800 text-emerald-300 rounded-lg text-xs flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  <span>{isAr ? 'تم إرسال رابط التعيين بنجاح!' : 'Reset link sent successfully!'}</span>
-                </div>
+                  <div>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="text-xs font-semibold text-slate-300">
+                        {isAr ? 'كلمة المرور' : 'Password'}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setAuthMode('recover')}
+                        className="text-[11px] text-[#D5B46B] hover:underline cursor-pointer"
+                      >
+                        {isAr ? 'نسيت كلمة المرور؟' : 'Forgot Password?'}
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <KeyRound className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                      <input
+                        type="password"
+                        required
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        className="w-full bg-[#051724] border border-cyan-950 rounded-lg pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-[#D5B46B]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quick Client Sign-in */}
+                  <div className="p-3 rounded-xl bg-[#051724] border border-cyan-950/60 text-[11px] flex items-center justify-between gap-2">
+                    <span className="text-slate-400 font-semibold">
+                      {isAr ? 'دخول سريع للعميل:' : 'Quick Client Access:'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => login('client@qabs1.store', 'merchant')}
+                      className="px-3 py-1.5 bg-[#00A389]/20 hover:bg-[#00A389]/30 border border-[#00A389]/40 text-[#2DD4BF] font-bold rounded-lg text-[11px] cursor-pointer"
+                    >
+                      {isAr ? 'دخول حساب عميل الآن' : 'Instant Client Sign In'}
+                    </button>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 bg-gradient-to-r from-[#D5B46B] to-[#F3E5AB] text-slate-950 font-black rounded-xl text-xs hover:opacity-95 transition-all cursor-pointer shadow-md"
+                  >
+                    {pendingServiceOrder
+                      ? isAr
+                        ? 'تسجيل الدخول ومتابعة الدفع'
+                        : 'Sign In & Continue to Checkout'
+                      : isAr
+                      ? 'تسجيل الدخول إلى حسابي'
+                      : 'Sign In to My Account'}
+                  </button>
+                </form>
               )}
 
-              <button
-                type="submit"
-                className="w-full py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-lg text-xs transition-colors cursor-pointer"
-              >
-                {isAr ? 'إرسال رابط الاستعادة' : 'Send Recovery Link'}
-              </button>
-            </form>
+              {authMode === 'register' && (
+                <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      {isAr ? 'الاسم الكامل *' : 'Full Name *'}
+                    </label>
+                    <div className="relative">
+                      <User className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                      <input
+                        type="text"
+                        required
+                        placeholder={isAr ? 'مثال: محمد العتيبي' : 'e.g. Mohammed Al-Otaibi'}
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        className="w-full bg-[#051724] border border-cyan-950 rounded-lg pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-[#00A389]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      {isAr ? 'البريد الإلكتروني *' : 'Email Address *'}
+                    </label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                      <input
+                        type="email"
+                        required
+                        placeholder="name@company.com"
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        className="w-full bg-[#051724] border border-cyan-950 rounded-lg pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-[#00A389]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      {isAr ? 'اسم الشركة أو المتجر (اختياري)' : 'Company or Brand Name (Optional)'}
+                    </label>
+                    <div className="relative">
+                      <Building className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                      <input
+                        type="text"
+                        placeholder="e.g. Atlas Commerce LLC"
+                        value={companyName}
+                        onChange={e => setCompanyName(e.target.value)}
+                        className="w-full bg-[#051724] border border-cyan-950 rounded-lg pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-[#00A389]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      {isAr ? 'كلمة المرور *' : 'Password *'}
+                    </label>
+                    <div className="relative">
+                      <KeyRound className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                      <input
+                        type="password"
+                        required
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        className="w-full bg-[#051724] border border-cyan-950 rounded-lg pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-[#00A389]"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 bg-gradient-to-r from-[#00A389] to-[#2DD4BF] text-slate-950 font-black rounded-xl text-xs hover:opacity-95 transition-all cursor-pointer shadow-md"
+                  >
+                    {pendingServiceOrder
+                      ? isAr
+                        ? 'إنشاء الحساب ومتابعة إتمام الطلب'
+                        : 'Create Account & Proceed to Checkout'
+                      : isAr
+                      ? 'إنشاء حساب عميل جديد'
+                      : 'Create Client Account'}
+                  </button>
+                </form>
+              )}
+
+              {authMode === 'recover' && (
+                <form onSubmit={handleRecoverSubmit} className="space-y-4">
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    {isAr
+                      ? 'أدخل بريدك الإلكتروني المسجل وسنرسل لك رابطاً مشفراً لإعادة تعيين كلمة المرور فوراً.'
+                      : 'Enter your registered email address and we will dispatch a secure password reset token.'}
+                  </p>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      {isAr ? 'البريد الإلكتروني' : 'Email Address'}
+                    </label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                      <input
+                        type="email"
+                        required
+                        placeholder="user@example.com"
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        className="w-full bg-[#051724] border border-cyan-950 rounded-lg pl-9 pr-3 py-2 text-xs text-white"
+                      />
+                    </div>
+                  </div>
+
+                  {resetSent && (
+                    <div className="p-3 bg-emerald-950/60 border border-emerald-800 text-emerald-300 rounded-lg text-xs flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      <span>{isAr ? 'تم إرسال رابط التعيين بنجاح!' : 'Reset link sent successfully!'}</span>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                  >
+                    {isAr ? 'إرسال رابط الاستعادة' : 'Send Recovery Link'}
+                  </button>
+                </form>
+              )}
+            </>
           )}
         </div>
       </div>

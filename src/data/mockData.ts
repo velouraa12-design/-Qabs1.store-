@@ -17,14 +17,24 @@ import {
   StoreSectionBlock
 } from '../types/index.ts';
 
-export const INITIAL_USER: UserProfile = {
-  id: 'usr_qabs_99',
-  name: 'عبدالله السعدي',
-  email: 'founder@qabs1.store',
+export const OWNER_USER_PROFILE: UserProfile = {
+  id: 'owner_anwar',
+  name: 'أنور الغزالي',
+  email: 'anwar@qabs1.store',
   role: 'super_admin',
-  avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-  companyName: 'Qabs Global Ventures LLC',
-  credits: 4850
+  avatar: '',
+  companyName: 'QABS Digital Holding',
+  credits: 10000
+};
+
+export const INITIAL_USER: UserProfile = {
+  id: 'guest',
+  name: 'زائر منصة قبس',
+  email: 'guest@qabs1.store',
+  role: 'merchant',
+  avatar: '',
+  companyName: '',
+  credits: 0
 };
 
 export const DEFAULT_STORE_SECTIONS: StoreSectionBlock[] = [
@@ -999,7 +1009,7 @@ export const INITIAL_TICKETS: SupportTicket[] = [
     createdAt: '2026-03-08 16:30',
     updatedAt: '2026-03-09 09:20',
     clientName: 'خالد المنصور (TechVolt)',
-    assignedTo: 'كريم عادل (مهندس تكامل المتاجر)',
+    assignedTo: 'أنور الغزالي (الإدارة العليا)',
     lastMessage: 'بانتظار مطابقة بيانات التاجر من إدارة قبس؛ لا يتم تفعيل بوابة الدفع تلقائياً.'
   },
   {
@@ -1014,51 +1024,19 @@ export const INITIAL_TICKETS: SupportTicket[] = [
     createdAt: '2026-03-06 14:00',
     updatedAt: '2026-03-07 14:00',
     clientName: 'محمد الخالدي (قبس لكشري)',
-    assignedTo: 'فريق البنية السحابية Cloudflare',
+    assignedTo: 'نظام قبس التلقائي',
     lastMessage: 'تم التحقق من سجلات CNAME وتفعيل HTTPS على شبكة Cloudflare بنجاح.'
   }
 ];
 
-export const INITIAL_STAFF: StaffMember[] = [
-  {
-    id: 'stf_01',
-    name: 'عبدالله السعدي',
-    email: 'abdullah@qabs1.store',
-    role: 'super_admin',
-    department: 'الإدارة المركزية لمتاجر قبس (QABS Central Control)',
-    permissions: ['all_stores_control', 'store_approval_publish', 'payment_gateway_verify', 'template_manager'],
-    status: 'active',
-    lastActive: 'الآن (نشط)'
-  },
-  {
-    id: 'stf_02',
-    name: 'سارة المنصوري',
-    email: 'sara.m@qabs1.store',
-    role: 'compliance_officer',
-    department: 'مراجعة واعتماد المتاجر والمدفوعات',
-    permissions: ['store_review', 'domain_verification', 'payment_audit'],
-    status: 'active',
-    lastActive: 'منذ 15 دقيقة'
-  },
-  {
-    id: 'stf_03',
-    storeId: 'store_01',
-    name: 'ماجد الحربي (موظف متجر قبس لكشري)',
-    email: 'majed@lux-qabs.com',
-    role: 'support_agent',
-    department: 'إدارة الطلبات والمخزون — متجر store_01 فقط',
-    permissions: ['orders_manage_only', 'inventory_update_only'],
-    status: 'active',
-    lastActive: 'منذ 30 دقيقة'
-  }
-];
+export const INITIAL_STAFF: StaffMember[] = [];
 
 export const INITIAL_AUDIT_LOGS: AuditLogItem[] = [
   {
     id: 'log_01',
     storeId: 'store_01',
     timestamp: '2026-03-09 14:38',
-    actor: 'عبدالله السعدي (إدارة قبس)',
+    actor: 'أنور الغزالي (المالك - Super Admin)',
     actionAr: 'اعتماد نشر متجر قبس لكشري (store_01) وتفعيل النطاق المستقل www.lux-qabs.com',
     actionEn: 'Approved publication of store_01 and activated custom domain www.lux-qabs.com',
     target: 'Tenant Store #store_01 (Isolated D1 Database)',

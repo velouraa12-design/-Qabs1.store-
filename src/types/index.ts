@@ -14,6 +14,31 @@ export interface UserProfile {
   credits: number;
 }
 
+export interface PendingServiceOrder {
+  id: string;
+  serviceType: 'company_formation' | 'store_package' | 'ai_credits';
+  titleAr: string;
+  titleEn: string;
+  subtitleAr?: string;
+  subtitleEn?: string;
+  priceUsd: number;
+  details?: {
+    jurisdiction?: 'US_KENTUCKY' | 'US_WYOMING' | 'US_DELAWARE' | 'US_NEW_MEXICO' | 'UK_LTD';
+    companyName?: string;
+    entityType?: 'LLC' | 'C-CORP' | 'LTD';
+    addons?: {
+      ein: boolean;
+      physicalAddressAgent: boolean;
+      businessBank: boolean;
+      stripePayPal: boolean;
+    };
+    planId?: 'starter' | 'growth' | 'enterprise';
+    billingCycle?: 'monthly' | 'annual';
+    storeName?: string;
+    creditsAmount?: number;
+  };
+}
+
 export interface SubscriptionPlan {
   id: 'starter' | 'growth' | 'enterprise';
   nameAr: string;

@@ -180,6 +180,8 @@ export const PortalView: React.FC<PortalViewProps> = ({ onOpenStoreModal, onOpen
     exportWorkspaceBackupJson,
     importWorkspaceBackupJson,
     resetWorkspaceData,
+    isOwner,
+    logout,
     showToast
   } = useApp();
 
@@ -1192,22 +1194,28 @@ export const PortalView: React.FC<PortalViewProps> = ({ onOpenStoreModal, onOpen
             </span>
           </button>
 
-          <button
-            type="button"
-            onClick={toggleProductionMode}
-            className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs font-black transition-colors cursor-pointer ${
-              isProductionMode
-                ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                : 'border-[#EAE6DC] bg-[#F5F1E6] text-[#92743A] hover:border-[#D5B46B]'
-            }`}
-          >
-            {isProductionMode ? <Rocket className="w-3.5 h-3.5 text-emerald-600" /> : <FlaskConical className="w-3.5 h-3.5" />}
-            <span>
-              {isProductionMode
-                ? isAr ? 'وضع الإنتاج مفعّل ✓' : 'Production Active ✓'
-                : isAr ? 'تحويل إلى وضع الإنتاج' : 'Switch to Production'}
+          {isOwner ? (
+            <button
+              type="button"
+              onClick={toggleProductionMode}
+              className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs font-black transition-colors cursor-pointer ${
+                isProductionMode
+                  ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                  : 'border-[#EAE6DC] bg-[#F5F1E6] text-[#92743A] hover:border-[#D5B46B]'
+              }`}
+            >
+              {isProductionMode ? <Rocket className="w-3.5 h-3.5 text-emerald-600" /> : <FlaskConical className="w-3.5 h-3.5" />}
+              <span>
+                {isProductionMode
+                  ? isAr ? 'وضع الإنتاج مفعّل ✓' : 'Production Active ✓'
+                  : isAr ? 'تحويل إلى وضع الإنتاج' : 'Switch to Production'}
+              </span>
+            </button>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-[#D5B46B]/60 bg-[#F5F1E6] px-3 py-2 text-xs font-black text-[#14243E]">
+              <span>{isAr ? `حساب العميل: ${user.name}` : `Client: ${user.name}`}</span>
             </span>
-          </button>
+          )}
 
           <select
             aria-label={isAr ? 'اختيار المتجر النشط' : 'Select active store'}
@@ -1323,18 +1331,36 @@ export const PortalView: React.FC<PortalViewProps> = ({ onOpenStoreModal, onOpen
               <div className="pt-3 mt-2 border-t border-[#EAE6DC] dark:border-slate-800 px-2 space-y-2 text-[11px] text-slate-500 dark:text-slate-400">
                 <div className="flex items-center gap-2">
                   <HelpCircle className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                  <span>{isAr ? 'مساحة اختبار معزولة' : 'Isolated test workspace'}</span>
+                  <span>
+                    {isOwner
+                      ? isAr
+                        ? 'حساب المالك الوحيد (Super Admin)'
+                        : 'Sole Owner (Super Admin)'
+                      : isAr
+                      ? 'مساحة عمل العميل — متابعة الطلبات والمستندات'
+                      : 'Client Workspace'}
+                  </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('admin');
-                    if (typeof window !== 'undefined' && window.innerWidth < 1024) setSidebarOpen(false);
-                  }}
-                  className="block text-start underline underline-offset-4 hover:text-[#14243E] dark:hover:text-white transition-colors cursor-pointer"
-                >
-                  {isAr ? 'تصور لوحة الإدارة (للعرض فقط)' : 'Admin panel preview (view-only)'}
-                </button>
+                {isOwner ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('admin');
+                      if (typeof window !== 'undefined' && window.innerWidth < 1024) setSidebarOpen(false);
+                    }}
+                    className="block text-start font-bold text-[#92743A] underline underline-offset-4 hover:text-[#14243E] dark:hover:text-white transition-colors cursor-pointer"
+                  >
+                    {isAr ? 'الانتقال إلى لوحة إدارة المالك (أنور الغزالي)' : 'Open Owner Admin Panel'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={logout}
+                    className="block text-start text-rose-600 hover:underline transition-colors cursor-pointer font-bold"
+                  >
+                    {isAr ? 'تسجيل الخروج والعودة للواجهة العامة' : 'Sign Out to Public Showcase'}
+                  </button>
+                )}
               </div>
             </div>
           </aside>
@@ -3033,159 +3059,198 @@ export const PortalView: React.FC<PortalViewProps> = ({ onOpenStoreModal, onOpen
                 </div>
               </div>
 
-              {/* Separate Owner & Staff Permissions */}
+              {/* Separate Sole Owner (Anwar Al-Ghazali) & Client Role Permissions */}
               <div className="bg-white dark:bg-[#071D2B] border border-[#EAE6DC] dark:border-slate-800 rounded-2xl p-6 space-y-5 shadow-xs">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Lock className="w-4 h-4 text-[#92743A]" />
                     <h3 className="text-base font-black text-[#14243E] dark:text-white">
-                      {isAr ? 'إدارة صلاحيات مالك المتجر والموظفين التفصيلية' : 'Store Owner & Staff Detailed Role Permissions'}
+                      {isAr ? 'صلاحيات المالك الوحيد والوصول للنظام' : 'Sole Owner Authority & Access Control'}
                     </h3>
                   </div>
-                  <span className="text-[11px] font-bold text-slate-500">
-                    {staff.length} {isAr ? 'أعضاء فريق' : 'Team Members'}
+                  <span className="px-3 py-1 rounded-full bg-[#14243E] text-[#D5B46B] text-[11px] font-black self-start">
+                    {isAr ? 'المالك الوحيد: أنور الغزالي' : 'Sole Owner: Anwar Al-Ghazali'}
                   </span>
                 </div>
 
-                <form
-                  onSubmit={e => {
-                    e.preventDefault();
-                    if (!staffName.trim()) return;
-                    addStaff({
-                      name: staffName.trim(),
-                      email: staffEmail.trim() || 'staff@qabs1.store',
-                      role: 'support_agent',
-                      departmentAr: `فريق تشغيل متجر (${currentStore.name})`,
-                      departmentEn: `Store Operations (${currentStore.name})`,
-                      permissions: newStaffPerms.length > 0 ? newStaffPerms : ['inventory_update_only']
-                    });
-                    setStaffName('');
-                    setStaffEmail('');
-                  }}
-                  className="p-4 rounded-2xl bg-[#FBFAF6] dark:bg-slate-900/70 border border-[#EAE6DC] dark:border-slate-800 space-y-3"
-                >
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <input
-                      type="text"
-                      required
-                      placeholder={isAr ? 'اسم الموظف *' : 'Staff Name *'}
-                      value={staffName}
-                      onChange={e => setStaffName(e.target.value)}
-                      className="rounded-xl border border-[#EAE6DC] dark:border-slate-700 bg-white dark:bg-[#071D2B] px-3 py-2 text-xs"
-                    />
-                    <input
-                      type="email"
-                      placeholder={isAr ? 'البريد الإلكتروني للموظف' : 'Staff Email'}
-                      value={staffEmail}
-                      onChange={e => setStaffEmail(e.target.value)}
-                      className="rounded-xl border border-[#EAE6DC] dark:border-slate-700 bg-white dark:bg-[#071D2B] px-3 py-2 text-xs"
-                    />
-                    <button
-                      type="submit"
-                      className="rounded-xl bg-[#14243E] hover:bg-[#1d3559] text-white text-xs font-black py-2 px-4 cursor-pointer"
-                    >
-                      {isAr ? '+ إضافة موظف بالصلاحيات المحددة' : '+ Add Staff Member'}
-                    </button>
+                {!isOwner ? (
+                  <div className="p-4 rounded-2xl bg-[#FBFAF6] dark:bg-slate-900/70 border border-[#D5B46B]/50 text-xs space-y-1.5">
+                    <div className="font-black text-[#14243E] dark:text-[#D5B46B]">
+                      {isAr ? `أهلاً بك ${user.name} — وضع حساب العميل` : `Welcome ${user.name} — Client Account`}
+                    </div>
+                    <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                      {isAr
+                        ? 'حسابك مخصص لمتابعة طلباتك، شركاتك الدولية، متاجرك، مستنداتك، وفواتيرك. إعدادات الإدارة المركزية وبوابات الدفع والصلاحيات خاصة بالمالك الوحيد للمنصة: أنور الغزالي (Super Admin).'
+                        : 'Your client workspace focuses on tracking your orders, companies, stores, documents, and invoices. Platform-wide admin controls are restricted to Sole Owner Anwar Al-Ghazali.'}
+                    </p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                    <span className="font-bold text-slate-500">{isAr ? 'الصلاحيات المبدئية:' : 'Initial Permissions:'}</span>
-                    {([
-                      'all_stores_control',
-                      'payment_gateway_verify',
-                      'inventory_update_only',
-                      'orders_fulfillment',
-                      'billing_manage',
-                      'ai_commands_exec'
-                    ]).map(perm => {
-                      const selected = newStaffPerms.includes(perm);
-                      return (
-                        <button
-                          key={perm}
-                          type="button"
-                          onClick={() =>
-                            setNewStaffPerms(prev =>
-                              prev.includes(perm) ? prev.filter(p => p !== perm) : [...prev, perm]
-                            )
-                          }
-                          className={`px-2.5 py-1 rounded-lg font-mono font-bold cursor-pointer border transition-colors ${
-                            selected
-                              ? 'bg-emerald-100 border-emerald-300 text-emerald-800'
-                              : 'bg-white border-[#EAE6DC] text-slate-500'
-                          }`}
-                        >
-                          {selected ? '✓ ' : '+ '}
-                          {perm}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </form>
-
-                <div className="space-y-3">
-                  {staff.map(member => {
-                    const allPerms = [
-                      'all_stores_control',
-                      'payment_gateway_verify',
-                      'inventory_update_only',
-                      'orders_fulfillment',
-                      'billing_manage',
-                      'ai_commands_exec'
-                    ];
-                    const customPerms = member.permissions.filter(p => !allPerms.includes(p));
-                    const displayPerms = [...allPerms, ...customPerms];
-                    return (
-                      <div
-                        key={member.id}
-                        className="p-4 rounded-2xl bg-[#F8F7F2] dark:bg-slate-900 border border-[#EAE6DC] dark:border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-xs"
-                      >
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-black text-[#14243E] dark:text-white">{member.name}</span>
-                            <span className="text-[10px] font-mono text-slate-500">{member.email}</span>
-                          </div>
-                          <div className="text-[11px] text-slate-500 mt-0.5">
-                            {isAr ? member.departmentAr || member.department : member.departmentEn || member.department}
-                          </div>
+                ) : (
+                  <>
+                    <div className="p-4 rounded-2xl bg-[#14243E] text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                      <div>
+                        <div className="font-black text-[#D5B46B]">
+                          {isAr ? 'أنور الغزالي — المالك والمدير العام الوحيد (Super Admin)' : 'Anwar Al-Ghazali — Sole Owner & Super Admin'}
                         </div>
-
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {displayPerms.map(perm => {
-                            const active = member.permissions.includes(perm);
-                            return (
-                              <button
-                                key={perm}
-                                type="button"
-                                onClick={() => {
-                                  const nextPerms = active
-                                    ? member.permissions.filter(p => p !== perm)
-                                    : [...member.permissions, perm];
-                                  updateStaffPermissions(member.id, nextPerms);
-                                }}
-                                title={isAr ? 'اضغط لتفعيل أو إلغاء الصلاحية' : 'Click to toggle permission'}
-                                className={`px-2.5 py-1 rounded-lg font-mono text-[10px] font-black cursor-pointer border transition-colors ${
-                                  active
-                                    ? 'bg-emerald-100 border-emerald-300 text-emerald-800 dark:bg-emerald-950/60 dark:border-emerald-800 dark:text-emerald-300'
-                                    : 'bg-white dark:bg-[#071D2B] border-[#EAE6DC] dark:border-slate-700 text-slate-400 hover:text-[#14243E]'
-                                }`}
-                              >
-                                {active ? '✓ ' : ''}
-                                {perm}
-                              </button>
-                            );
-                          })}
-                          <button
-                            type="button"
-                            onClick={() => removeStaff(member.id)}
-                            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 cursor-pointer ms-1"
-                            title={isAr ? 'إزالة العضو' : 'Remove member'}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                        <div className="text-[11px] text-[#EAE6DC] mt-0.5">
+                          {isAr
+                            ? 'صلاحية كاملة وغير مقيدة على جميع المتاجر، تأسيس الشركات، الموافقات، وإعدادات بوابات الدفع — بدون أي موظفين وهميين.'
+                            : 'Unrestricted sole owner authority across all stores, formations, approvals, and gateways — zero mock staff.'}
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
+                      <span className="font-mono text-[11px] px-2.5 py-1 rounded bg-white/10 text-[#F3E5AB] self-start">
+                        {staff.length} {isAr ? 'موظف مضاف' : 'Added Staff'}
+                      </span>
+                    </div>
+
+                    <form
+                      onSubmit={e => {
+                        e.preventDefault();
+                        if (!staffName.trim()) return;
+                        addStaff({
+                          name: staffName.trim(),
+                          email: staffEmail.trim() || 'staff@qabs1.store',
+                          role: 'support_agent',
+                          departmentAr: `فريق تشغيل متجر (${currentStore.name})`,
+                          departmentEn: `Store Operations (${currentStore.name})`,
+                          permissions: newStaffPerms.length > 0 ? newStaffPerms : ['inventory_update_only']
+                        });
+                        setStaffName('');
+                        setStaffEmail('');
+                      }}
+                      className="p-4 rounded-2xl bg-[#FBFAF6] dark:bg-slate-900/70 border border-[#EAE6DC] dark:border-slate-800 space-y-3"
+                    >
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <input
+                          type="text"
+                          required
+                          placeholder={isAr ? 'اسم الموظف الجديد *' : 'New Staff Name *'}
+                          value={staffName}
+                          onChange={e => setStaffName(e.target.value)}
+                          className="rounded-xl border border-[#EAE6DC] dark:border-slate-700 bg-white dark:bg-[#071D2B] px-3 py-2 text-xs"
+                        />
+                        <input
+                          type="email"
+                          placeholder={isAr ? 'البريد الإلكتروني' : 'Staff Email'}
+                          value={staffEmail}
+                          onChange={e => setStaffEmail(e.target.value)}
+                          className="rounded-xl border border-[#EAE6DC] dark:border-slate-700 bg-white dark:bg-[#071D2B] px-3 py-2 text-xs"
+                        />
+                        <button
+                          type="submit"
+                          className="rounded-xl bg-[#14243E] hover:bg-[#1d3559] text-white text-xs font-black py-2 px-4 cursor-pointer"
+                        >
+                          {isAr ? '+ إضافة موظف حقيقي' : '+ Add Staff Member'}
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                        <span className="font-bold text-slate-500">{isAr ? 'الصلاحيات المبدئية:' : 'Initial Permissions:'}</span>
+                        {([
+                          'all_stores_control',
+                          'payment_gateway_verify',
+                          'inventory_update_only',
+                          'orders_fulfillment',
+                          'billing_manage',
+                          'ai_commands_exec'
+                        ]).map(perm => {
+                          const selected = newStaffPerms.includes(perm);
+                          return (
+                            <button
+                              key={perm}
+                              type="button"
+                              onClick={() =>
+                                setNewStaffPerms(prev =>
+                                  prev.includes(perm) ? prev.filter(p => p !== perm) : [...prev, perm]
+                                )
+                              }
+                              className={`px-2.5 py-1 rounded-lg font-mono font-bold cursor-pointer border transition-colors ${
+                                selected
+                                  ? 'bg-emerald-100 border-emerald-300 text-emerald-800'
+                                  : 'bg-white border-[#EAE6DC] text-slate-500'
+                              }`}
+                            >
+                              {selected ? '✓ ' : '+ '}
+                              {perm}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </form>
+
+                    {staff.length === 0 ? (
+                      <div className="p-6 rounded-2xl border border-dashed border-[#D5B46B]/60 bg-[#FBFAF6] dark:bg-slate-900/40 text-center text-xs text-slate-500 font-bold">
+                        {isAr
+                          ? 'لا يوجد أي موظفين مسجلين حالياً — النظام يعمل بحساب المالك الوحيد (أنور الغزالي).'
+                          : 'No staff members added — operating exclusively under Sole Owner Anwar Al-Ghazali.'}
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {staff.map(member => {
+                          const allPerms = [
+                            'all_stores_control',
+                            'payment_gateway_verify',
+                            'inventory_update_only',
+                            'orders_fulfillment',
+                            'billing_manage',
+                            'ai_commands_exec'
+                          ];
+                          const customPerms = member.permissions.filter(p => !allPerms.includes(p));
+                          const displayPerms = [...allPerms, ...customPerms];
+                          return (
+                            <div
+                              key={member.id}
+                              className="p-4 rounded-2xl bg-[#F8F7F2] dark:bg-slate-900 border border-[#EAE6DC] dark:border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-xs"
+                            >
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-black text-[#14243E] dark:text-white">{member.name}</span>
+                                  <span className="text-[10px] font-mono text-slate-500">{member.email}</span>
+                                </div>
+                                <div className="text-[11px] text-slate-500 mt-0.5">
+                                  {isAr ? member.departmentAr || member.department : member.departmentEn || member.department}
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {displayPerms.map(perm => {
+                                  const active = member.permissions.includes(perm);
+                                  return (
+                                    <button
+                                      key={perm}
+                                      type="button"
+                                      onClick={() => {
+                                        const nextPerms = active
+                                          ? member.permissions.filter(p => p !== perm)
+                                          : [...member.permissions, perm];
+                                        updateStaffPermissions(member.id, nextPerms);
+                                      }}
+                                      title={isAr ? 'اضغط لتفعيل أو إلغاء الصلاحية' : 'Click to toggle permission'}
+                                      className={`px-2.5 py-1 rounded-lg font-mono text-[10px] font-black cursor-pointer border transition-colors ${
+                                        active
+                                          ? 'bg-emerald-100 border-emerald-300 text-emerald-800 dark:bg-emerald-950/60 dark:border-emerald-800 dark:text-emerald-300'
+                                          : 'bg-white dark:bg-[#071D2B] border-[#EAE6DC] dark:border-slate-700 text-slate-400 hover:text-[#14243E]'
+                                      }`}
+                                    >
+                                      {active ? '✓ ' : ''}
+                                      {perm}
+                                    </button>
+                                  );
+                                })}
+                                <button
+                                  type="button"
+                                  onClick={() => removeStaff(member.id)}
+                                  className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 cursor-pointer ms-1"
+                                  title={isAr ? 'إزالة العضو' : 'Remove member'}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           )}

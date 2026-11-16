@@ -18,7 +18,7 @@ export const FormationWizardModal: React.FC<FormationWizardModalProps> = ({
   onClose,
   initialStateCode = 'WY'
 }) => {
-  const { language, addCompany } = useApp();
+  const { language, addCompany, user } = useApp();
   const isAr = language === 'ar';
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -27,8 +27,8 @@ export const FormationWizardModal: React.FC<FormationWizardModalProps> = ({
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const [companyName, setCompanyName] = useState('');
   const [entityType, setEntityType] = useState<'LLC' | 'C-CORP'>('LLC');
-  const [ownerName, setOwnerName] = useState('عبدالله السعدي');
-  const [ownerEmail, setOwnerEmail] = useState('founder@qabs1.store');
+  const [ownerName, setOwnerName] = useState(user.id !== 'guest' ? user.name : '');
+  const [ownerEmail, setOwnerEmail] = useState(user.id !== 'guest' ? user.email : '');
   const [ownerCountry, setOwnerCountry] = useState('Saudi Arabia');
 
   useEffect(() => {
